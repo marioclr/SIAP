@@ -1,0 +1,30 @@
+CREATE OR REPLACE PROCEDURE SIAP.GetNotInString(sTableFind VARCHAR2, sInString VARCHAR2 := NULL, sOutString OUT NUMBER) IS
+
+tValues SPLIT_TBL;
+sQuery VARCHAR2(1000);
+TYPE CUR_TYP IS REF CURSOR;
+c_cursor CUR_TYP;
+v_EmployeeID Employees.EmployeeID%TYPE;
+
+BEGIN
+
+    SELECT Split(sInString, ',') INTO tValues FROM DUAL;
+    sQuery := 'Select * from tValues';
+    --sQuery := 'Select EmployeeID From sTableFind Where EmployeeID NOT IN (Select * from tValues)';
+
+    OPEN c_cursor FOR sQuery;
+    LOOP
+            FETCH c_cursor INTO v_EmployeeID;
+            EXIT WHEN c_cursor%NOTFOUND;
+            sOutString := sOutString || TO_CHAR(v_EmployeeID) || ';';
+    END LOOP;
+    
+    If SUBSTR(sOutString, LENGTH(sOutString), 1) = ',' Then
+        sOutString := SUBSTR(sOutString, 1, LENGTH(sOutString) -1);
+    End If;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        NULL;
+END;
+/

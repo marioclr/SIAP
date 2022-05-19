@@ -1,0 +1,190 @@
+CREATE OR REPLACE PROCEDURE SIAP.CreateAndRunCredits(lPayrollID NUMBER, lForPayrollID NUMBER, iPayrollType NUMBER, sConditions VARCHAR2 := '', iInsertCounts OUT NUMBER) IS
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    c_cursors CUR_TYP;
+    --row_Antiquities Antiquities%ROWTYPE;
+    --row_CV2 SYS_REFCURSOR;
+    aiDays SPLIT_TBL;
+    adDSM SPLIT_TBL;
+    iCOUNT NUMBER;
+    iCOUNTJ NUMBER;
+    iCountQuery NUMBER;
+    sPeriods VARCHAR2(100);
+    sTable VARCHAR2(100);
+    iCountQuery NUMBER;
+    dAmount FLOAT;
+    dTaxAmount FLOAT;
+    bMinMaxApplied BOOLEAN;
+
+    Type EmpCredits IS RECORD(
+        EmployeeID NUMBER,
+        CreditTypeID NUMBER,
+        PaymentAmount FLOAT,
+        AppliesToID VARCHAR2(100)
+    );
+
+    TYPE TEmpCredits IS TABLE OF EmpCredits INDEX BY BINARY_INTEGER;
+    tTEmpCredits TEmpCredits;
+
+    Type EmpCoreditsToInsert IS RECORD(
+        EmployeeID NUMBER,
+        ConceptID NUMBER,
+        ConceptAmount FLOAT
+    );
+
+    TYPE TEmpCoreditsToInsert IS TABLE OF EmpCoreditsToInsert INDEX BY BINARY_INTEGER;
+    tTEmpCoreditsToInsert TEmpCoreditsToInsert;
+
+    -- Query1
+    v_EmployeeID Credits.EmployeeID%TYPE;
+    v_CreditTypeID Credits.CreditTypeID%TYPE;
+    v_PaymentAmount Credits.PaymentAmount%TYPE;
+    v_AppliesToID Credits.AppliesToID%TYPE;
+
+    v_TotalAmount ConceptsValues.ConceptAmount%TYPE;
+    v_IsDeduction ConceptsValues.ConceptAmount%TYPE;
+
+    lPayID NUMBER;
+    lCurrentID NUMBER;
+    lEmployeeDate NUMBER;
+    lEndDate NUMBER;
+    lJobID NUMBER;
+    iActive NUMBER;
+    iActiveEmployeeID NUMBER;
+    iDay NUMBER;
+    iDays NUMBER;
+
+    lAntiquityYears NUMBER;
+    lAntiquityMonths NUMBER;
+    lAntiquityDays NUMBER;
+
+    lOcurredDate NUMBER;
+
+    lAntiquity2ID NUMBER;
+    lAntiquity3ID NUMBER;
+
+    sCondition VARCHAR2(1000);
+    --sConditionArmada VARCHAR2(1000);
+    sQuery VARCHAR2(2000);
+    sQueryBegin VARCHAR2(1000);
+    sQueryBeginToInsert VARCHAR2(2000);
+    sQueryEndToInsert VARCHAR2(2000);
+    sQueryToInsert VARCHAR2(3000);
+    --sPeriods VARCHAR2(100);
+    --sTable VARCHAR2(100);
+    
+    sEmployeesFor44 VARCHAR2(3000);
+    lTempEndDate NUMBER;
+    sPer VARCHAR2(50);
+
+    BEGIN
+
+        iInsertCounts:=0;
+        lPayID := lForPayrollID;
+        If (iPayrollType <> 4) And (InStr(sConditions, 'EmployeesRevisions') > 0) Then
+            sCondition := ' And (EmployeesHistoryList.EmployeeID=EmployeesRevisions.EmployeeID) And (EmployeesRevisions.PayrollID=' || lPayrollID || ') And (EmployeesRevisions.StartPayrollID=' || lPayrollID || ')' || sConditions;
+            sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+        End If;
+
+        sPeriods := '';
+        sPeriods := GetPeriodsForPayroll(lPayrollID, lForPayrollID, -1);
+        sPer := SUBSTR(sPeriods, LENGTH(sPeriods), 1);
+        sPer := SUBSTR(sPeriods, 1, LENGTH(sPeriods) -1);
+        If SUBSTR(sPeriods, LENGTH(sPeriods), 1) = ',' Then
+            sPeriods := SUBSTR(sPeriods, 1, LENGTH(sPeriods) -1);
+        End If;
+        adDSM := GetCurrencyValue(lForPayrollID);
+        sTable := 'Payroll_' || TO_CHAR(lPayrollID);
+        IF (iPayrollType=3) THEN
+            sTable := 'Payroll_' || TO_CHAR(lForPayrollID);
+        END IF;
+
+        BEGIN
+            -- 1
+            iCOUNT:=0;
+            sQuery := 'Select Credits.EmployeeID, Credits.CreditTypeID, Credits.PaymentAmount, Credits.AppliesToID' ||
+                            ' From Credits, Concepts, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || 
+                            ' Where (Credits.CreditTypeID=Concepts.ConceptID) And (Credits.EmployeeID=EmployeesHistoryList.EmployeeID)' ||
+                            ' And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate)' ||
+                            ' And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ')' ||
+                            ' And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID)' ||
+                            ' And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1)' ||
+                            ' And (Reasons.ActiveEmployeeID<>2) And (Credits.CreditTypeID>0) And (Credits.EndDate>=' || lForPayrollID || ')' ||
+                            ' And (Credits.QttyID=2) And ((Credits.PaymentsCounter<Credits.PaymentsNumber) Or (Credits.PaymentsNumber<1)) And (Credits.Active=1)' ||
+                            ' And (Concepts.StartDate<=' || lForPayrollID || ') And (Concepts.EndDate>=' || lForPayrollID || ')' ||
+                            ' And (Credits.AppliesToID Is Not Null) ' || sCondition ||
+                            ' Order By Credits.EmployeeID, Concepts.OrderInList, Concepts.ConceptID';
+
+            --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(12);
+            --commit;
+
+            OPEN c_cursor FOR sQuery;
+            LOOP
+                FETCH c_cursor INTO v_EmployeeID, v_CreditTypeID, v_PaymentAmount, v_AppliesToID;
+                EXIT WHEN c_cursor%NOTFOUND;
+                iCOUNT := iCOUNT+1;
+                tTEmpCredits(iCOUNT).EmployeeID := v_EmployeeID;
+                tTEmpCredits(iCOUNT).CreditTypeID := v_CreditTypeID;
+                tTEmpCredits(iCOUNT).PaymentAmount := v_PaymentAmount;
+                tTEmpCredits(iCOUNT).AppliesToID := v_AppliesToID;
+            END LOOP;
+            CLOSE c_cursor;
+
+            iCOUNTJ := 0;
+            IF (tTEmpCredits.COUNT > 0) THEN
+                FOR i IN tTEmpCredits.FIRST..tTEmpCredits.LAST
+                LOOP
+                    sQuery := 'Select Sum(ConceptAmount) As TotalAmount, IsDeduction From Payroll_' || lPayrollID || ', Concepts Where (Payroll_' || lPayrollID || '.ConceptID=Concepts.ConceptID) And (RecordDate=' || lForPayrollID || ') And (EmployeeID=' || tTEmpCredits(i).EmployeeID || ') And (Concepts.ConceptID In (' || tTEmpCredits(i).AppliesToID || ')) And (Concepts.StartDate<=' || lForPayrollID || ') And (Concepts.EndDate>=' || lForPayrollID || ') Group By IsDeduction';
+                    dAmount := 0;
+                    OPEN c_cursors FOR sQuery;
+                    LOOP
+                        FETCH c_cursors INTO v_TotalAmount, v_IsDeduction;
+                        If  c_cursors%NOTFOUND Then
+                            GoTo NoRowsQueryCV1;
+                        End If;
+                        If TO_NUMBER(v_IsDeduction) = 0 Then
+                            dAmount := dAmount + TO_NUMBER(v_TotalAmount);
+                        Else
+                            dAmount := dAmount - TO_NUMBER(v_TotalAmount);
+                        End If;
+                    END LOOP;
+
+                    <<NoRowsQueryCV1>>
+                    CLOSE c_cursors;
+                    iCOUNTJ:=iCOUNTJ+1;
+                    tTEmpCoreditsToInsert(iCOUNTJ).EmployeeID := tTEmpCredits(i).EmployeeID;
+                    tTEmpCoreditsToInsert(iCOUNTJ).ConceptID := tTEmpCredits(i).CreditTypeID;
+                    tTEmpCoreditsToInsert(iCOUNTJ).ConceptAmount := dAmount;
+                END LOOP;
+            End If;
+
+            IF (tTEmpCoreditsToInsert.COUNT > 0) THEN
+                FOR ix IN tTEmpCoreditsToInsert.FIRST..tTEmpCoreditsToInsert.LAST
+                LOOP
+                    BEGIN
+                        sQueryToInsert := 'Insert Into Payroll_' || lPayrollID || ' (RecordDate, RecordID, EmployeeID, ConceptID, PayrollTypeID, ConceptAmount, ConceptTaxes, ConceptRetention, UserID) Values (' || lForPayrollID || ', 1, ' || tTEmpCoreditsToInsert(ix).EmployeeID || ', ' || tTEmpCoreditsToInsert(ix).ConceptID || ', 1, ' || tTEmpCoreditsToInsert(ix).ConceptAmount || ', 0, 0, ' || '3)';
+                        EXECUTE IMMEDIATE sQueryToInsert;
+                        iInsertCounts:=iInsertCounts+1;
+                        commit;
+                    EXCEPTION
+                        WHEN DUP_VAL_ON_INDEX THEN
+                            NULL;
+                        WHEN OTHERS THEN
+                            NULL;
+                    END;
+                END LOOP;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END CreateAndRunCredits;
+/

@@ -1,0 +1,31 @@
+<HTML>
+	<HEAD>
+		<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1" />
+		<TITLE>Sistema Integral de Administración de Personal del ISSSTE</TITLE>
+		<SCRIPT LANGUAGE="JavaScript" SRC="JavaScript/CommonLibrary.js"></SCRIPT>
+		<SCRIPT LANGUAGE="JavaScript" SRC="JavaScript/Events.js"></SCRIPT>
+		<SCRIPT LANGUAGE="JavaScript" SRC="JavaScript/PopupItem.js"></SCRIPT>
+		<SCRIPT LANGUAGE="JavaScript" SRC="JavaScript/URLManipulation.js"></SCRIPT>
+		<SCRIPT LANGUAGE="JavaScript"><!--
+			var iScreenWidth = (screen.width) ? screen.width : 1024; 
+			var iScreenHeight = (screen.height) ? screen.height : 768;
+			var iWindowWidth = (iScreenWidth >= 1024) ? 1024 : 800; 
+			var iWindowHeight = (iScreenHeight >= 768) ? 740 : 572;
+			var iLeftPosition = (iScreenWidth - iWindowWidth) / 2; 
+			var iTopPosition = (iScreenHeight - iWindowHeight - 28) / 2;
+
+			window.moveTo(iLeftPosition, iTopPosition);
+			window.resizeTo(iWindowWidth, iWindowHeight);
+			OpenNewWindow('ExecuteURL.asp', '', 'SIAP', iWindowWidth-12, iWindowHeight-23, 'yes', 'yes');
+		//--></SCRIPT>
+	</HEAD>
+	<BODY TEXT="#FFFFFF" LINK="#FFFFFF" ALINK="#FFFFFF" VLINK="#FFFFFF" BGCOLOR="#009966" BACKGROUND="Images/BGIndex.gif" LEFTMARGIN="0" TOPMARGIN="0" MARGINWIDTH="0" MARGINHEIGHT="0">
+		<DIV NAME="EntryDiv" ID="EntryDiv" STYLE="display: none"><TABLE WIDTH="100%" HEIGHT="100%"><TR><TD HEIGHT="100%" ALIGN="RIGHT" VALIGN="BOTTOM"><FONT FACE="Arial" SIZE="2"><B>
+			¿No aparece el sistema? <A HREF="javascript: OpenNewWindow('ExecuteURL.asp', '', 'SIAP', iWindowWidth-12, iWindowHeight-23, 'yes', 'yes');">Presione aquí para entrar</A>.&nbsp;&nbsp;&nbsp;<BR /><BR />
+			Usted puede cerrar esta ventana si así lo desea.&nbsp;&nbsp;&nbsp;<BR /><BR />
+		</B></FONT></TD></TR></TABLE></DIV>
+		<SCRIPT LANGUAGE="JavaScript"><!--
+			window.setTimeout("ShowDisplay(document.all['EntryDiv'])", 4000);
+		//--></SCRIPT>
+	</BODY>
+</HTML>

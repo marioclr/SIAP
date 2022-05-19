@@ -1,0 +1,23 @@
+DROP TABLE SIAP.SYNCDB_LOG CASCADE CONSTRAINTS;
+
+--
+-- SYNCDB_LOG  (Table) 
+--
+--   Row count:219631
+CREATE TABLE SIAP.SYNCDB_LOG
+(
+  LOG_PROGRAM      VARCHAR2(40 BYTE)            NOT NULL,
+  LOG_DESCRIPTION  VARCHAR2(2000 BYTE)          NOT NULL,
+  LOG_TYPE         VARCHAR2(1 BYTE)             DEFAULT 'I'                   NOT NULL,
+  LOG_EVENT_DATE   DATE                         DEFAULT SYSDATE               NOT NULL
+);
+
+
+--
+-- IDX_SYNCLOG_EVDT  (Index) 
+--
+--  Dependencies: 
+--   SYNCDB_LOG (Table)
+--
+CREATE INDEX SIAP.IDX_SYNCLOG_EVDT ON SIAP.SYNCDB_LOG
+(LOG_EVENT_DATE);

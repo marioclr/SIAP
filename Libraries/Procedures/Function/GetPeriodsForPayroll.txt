@@ -1,0 +1,86 @@
+CREATE OR REPLACE FUNCTION SIAP.GetPeriodsForPayroll(lPayrollID NUMBER, lForPayrollDate NUMBER, lStartDate NUMBER) RETURN NVARCHAR2 IS
+sPeriod VARCHAR2(10);
+sPeriods VARCHAR2(1000);
+sQuery VARCHAR2(1000);
+iDay NUMBER;
+iMonth NUMBER;
+iYear NUMBER;
+iDiff NUMBER;
+
+Periodos split_tbl;
+
+TYPE CUR_TYP IS REF CURSOR;
+c_cursor CUR_TYP;
+row_Periodo Periods%ROWTYPE;
+
+BEGIN
+    sPeriods := '3,12,13,';
+    iYear := TO_NUMBER(SUBSTR(lForPayrollDate, 0, 4));
+    iMonth := TO_NUMBER (SUBSTR(lForPayrollDate, 5, 2));
+    iDay := TO_NUMBER (SUBSTR(lForPayrollDate, 7, 2));
+   
+    If iDay > 15 Then
+        sPeriods := sPeriods || '4,';
+    End If;
+    If ((iMonth Mod 2) = 0) And (iDay > 15) Then
+        sPeriods := sPeriods || '5,';
+    End If;
+    If ((iMonth Mod 3) = 0) And (iDay > 15) Then
+        sPeriods := sPeriods || '6,';
+    End If;
+    If ((iMonth Mod 6) = 0) And (iDay > 15) Then
+        sPeriods := sPeriods || '7,';
+    End If;
+    If (iMonth = 12) And (iDay > 15) Then
+        sPeriods := sPeriods || '8,';
+    End If;
+    If lStartDate = -1 Then
+        If ((iYear Mod 2) = 0) And (iMonth = 12) And (iDay > 15) Then 
+            sPeriods := sPeriods || '9,';
+        End If;
+        If ((iYear Mod 5) = 0) And (iMonth = 12) And (iDay > 15) Then
+            sPeriods := sPeriods || '10,';
+        End If;
+    Else
+        iDiff := TO_NUMBER((lStartDate - lForPayrollDate) / 10000);
+        If ((iDiff Mod 2) = 0) And (iMonth = 12) And (iDay > 15) Then
+            sPeriods := sPeriods || '9,';
+        End If;
+        If ((iDiff Mod 5) = 0) And (iMonth = 12) And (iDay > 15) Then
+            sPeriods := sPeriods || '10,';
+        End If;
+    End If;
+
+    sQuery := 'Select * From Periods Where (PeriodDate<>''-1'') Order By PeriodID';
+    --sQuery := 'Select * From Periods Where Order By PeriodID';
+
+    OPEN c_cursor FOR sQuery;
+    LOOP
+            FETCH c_cursor INTO row_Periodo;
+            EXIT WHEN c_cursor%NOTFOUND;
+            --Periodos:= Split(row_Periodo.PeriodDate);
+            SELECT Split(row_Periodo.PeriodDate) INTO Periodos FROM DUAL;
+            FOR ix IN Periodos.FIRST..Periodos.LAST
+            LOOP
+                sPeriod := Periodos(ix);
+                If InStr(TO_CHAR (lForPayrollDate), Periodos(ix)) > 0 Then
+                    sPeriods := sPeriods || TO_CHAR(row_Periodo.PeriodID) || ',';
+                End If;
+                If TO_NUMBER(row_Periodo.bSpecial) = 1 Then
+                    If InStr(1, TO_CHAR (lPayrollID), Periodos(ix)) > 0 Then
+                        sPeriods := sPeriods || TO_CHAR(row_Periodo.PeriodID) || ',';
+                    End If;
+                End If;
+            END LOOP;
+    END LOOP;
+    CLOSE c_cursor;
+    return sPeriods;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END GetPeriodsForPayroll;
+/

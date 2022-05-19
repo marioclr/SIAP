@@ -1,0 +1,35 @@
+CREATE OR REPLACE FUNCTION SIAP.GetCurrencyValue(lForPayrollDate NUMBER) RETURN SPLIT_TBL IS
+
+sCurrencies VARCHAR2(1000);
+sQuery VARCHAR2(1000);
+tCurrencies SPLIT_TBL;
+
+TYPE CUR_TYP IS REF CURSOR;
+c_cursor CUR_TYP;
+row_Currencies CurrenciesHistoryList%ROWTYPE;
+
+BEGIN
+--    sCurrencies := '0';
+
+    sQuery := 'Select * From CurrenciesHistoryList Where (CurrencyDate=' || lForPayrollDate || ') And (CurrencyID In (1,2,3,4,5)) Order By CurrencyID';
+
+    OPEN c_cursor FOR sQuery;
+    LOOP
+            FETCH c_cursor INTO row_Currencies;
+            EXIT WHEN c_cursor%NOTFOUND;
+            sCurrencies := sCurrencies || TO_CHAR(ROUND(TO_NUMBER(row_Currencies.CurrencyValue), 2)) || ';';
+    END LOOP;
+
+    SELECT Split(sCurrencies, ';') INTO tCurrencies FROM DUAL;
+
+    CLOSE c_cursor;
+    return tCurrencies;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END GetCurrencyValue;
+/

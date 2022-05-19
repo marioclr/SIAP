@@ -1,0 +1,13 @@
+CREATE OR REPLACE PROCEDURE SIAP.gatherTableStats(sTable VARCHAR2, iPercent NUMBER, sMethod VARCHAR2 := 'for all indexed columns size auto') IS
+
+BEGIN
+
+   dbms_stats.gather_table_stats('SIAP', sTable, ESTIMATE_PERCENT=>iPercent, METHOD_OPT=>sMethod, CASCADE=>True);
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       RAISE;
+END gatherTableStats;
+/

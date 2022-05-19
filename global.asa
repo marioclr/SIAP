@@ -1,0 +1,6 @@
+<SCRIPT LANGUAGE="VBScript" RUNAT="Server">
+Sub Application_OnStart()
+	Application.Contents("SIAP_DaemonStatus") = 0
+	Application.Contents("SIAP_DaemonDay") = DateSerial(2009, 2, 16)
+End Sub
+</SCRIPT>

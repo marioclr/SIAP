@@ -1,0 +1,525 @@
+CREATE OR REPLACE PROCEDURE SIAP.UpdateAntiquities(lPayrollID NUMBER, lForPayrollID NUMBER, iPayrollType NUMBER, sConditions VARCHAR2 := '', iInsertCounts OUT NUMBER, sEmployeesFor44 OUT VARCHAR2) IS
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    row_Antiquities Antiquities%ROWTYPE;
+    --row_CV2 SYS_REFCURSOR;
+    aiDays SPLIT_TBL;
+
+    Type AntiquitiesRecord IS RECORD(
+        AntiquityID NUMBER,
+        StartYears NUMBER,
+        EndYears NUMBER
+    );
+
+    TYPE TAntiquities IS TABLE OF AntiquitiesRecord INDEX BY BINARY_INTEGER;
+    tTAntiquities TAntiquities;
+    iCOUNT NUMBER;
+    iCountQuery NUMBER;
+
+    -- Query1
+    v_EmployeeID EmployeesHistoryList.EmployeeID%TYPE;
+    v_EmployeeDate EmployeesHistoryList.EmployeeDate%TYPE;
+    v_EndDate EmployeesHistoryList.EndDate%TYPE;
+    v_JobID EmployeesHistoryList.JobID%TYPE;
+    v_Active StatusEmployees.Active%TYPE;
+    v_ActiveEmployeeID Reasons.ActiveEmployeeID%TYPE;
+    -- Query2
+    v_AntiquityYears EmployeesAntiquitiesLKP.AntiquityYears%TYPE; 
+    v_AntiquityMonths EmployeesAntiquitiesLKP.AntiquityMonths%TYPE;
+    v_AntiquityDays EmployeesAntiquitiesLKP.AntiquityMonths%TYPE;
+    -- Query3
+    v_OcurredDate EmployeesAbsencesLKP.OcurredDate%TYPE;
+    -- Query4
+    v_Antiquity2ID Employees.Antiquity2ID%TYPE;
+    v_Antiquity3ID Employees.Antiquity3ID%TYPE;
+
+    Type AntiqEmpToUpdate IS RECORD(
+        EmployeeID NUMBER,
+        AntiquityID NUMBER,
+        StartYears NUMBER,
+        EndYears NUMBER
+    );
+
+    Type AntiqEmpToUpdate2 IS RECORD(
+        EmployeeID NUMBER,
+        Days NUMBER
+    );
+
+    Type AntiqEmpToUpdate3 IS RECORD(
+        EmployeeID NUMBER,
+        Days0 NUMBER,
+        Days1 NUMBER
+    );
+
+    Type AntiqEmpToUpdate4 IS RECORD(
+        EmployeeID NUMBER,
+        AntiquityID NUMBER,
+        Days NUMBER
+    );
+
+    TYPE TAntiqEmpToUpdate IS TABLE OF AntiqEmpToUpdate INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate TAntiqEmpToUpdate;
+
+    TYPE TAntiqEmpToUpdate2 IS TABLE OF AntiqEmpToUpdate2 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate2 TAntiqEmpToUpdate2;
+
+    TYPE TAntiqEmpToUpdate3 IS TABLE OF AntiqEmpToUpdate3 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate3 TAntiqEmpToUpdate3;
+
+    TYPE TAntiqEmpToUpdate4 IS TABLE OF AntiqEmpToUpdate4 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate4 TAntiqEmpToUpdate4;
+
+    lPayID NUMBER;
+    lCurrentID NUMBER;
+    lEmployeeDate NUMBER;
+    lEndDate NUMBER;
+    lJobID NUMBER;
+    iActive NUMBER;
+    iActiveEmployeeID NUMBER;
+    iDay NUMBER;
+    iDays NUMBER;
+
+    lAntiquityYears NUMBER;
+    lAntiquityMonths NUMBER;
+    lAntiquityDays NUMBER;
+
+    lOcurredDate NUMBER;
+
+    lAntiquity2ID NUMBER;
+    lAntiquity3ID NUMBER;
+
+    adDSM SPLIT_TBL;
+    sCondition VARCHAR2(1000);
+    sQuery VARCHAR2(2000);
+    sQueryBegin VARCHAR2(1000);
+    sQueryBeginToInsert VARCHAR2(2000);
+    sQueryEndToInsert VARCHAR2(2000);
+    sQueryToInsert VARCHAR2(3000);
+    lTempEndDate NUMBER;
+
+    BEGIN
+
+        iInsertCounts:=0;
+        lPayID := lForPayrollID;
+        If (iPayrollType <> 4) And (InStr(sConditions, 'EmployeesRevisions') > 0) Then
+            sCondition := ' And (EmployeesHistoryList.EmployeeID=EmployeesRevisions.EmployeeID) And (EmployeesRevisions.PayrollID=' || lPayrollID || ') And (EmployeesRevisions.StartPayrollID=' || lPayrollID || ')' || sConditions;
+            sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+        End If;
+
+        lTempEndDate := TO_NUMBER(SUBSTR(lForPayrollID, 0, 4));
+        If (SUBSTR(lForPayrollID, 5, 2) = '01') Then
+                lTempEndDate := TO_NUMBER(TO_NUMBER(SUBSTR(lForPayrollID, 0, 4) - 1) || '1231');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '02') Or (SUBSTR(lForPayrollID, 5, 2) = '04') Or (SUBSTR(lForPayrollID, 5, 2) = '06') Or (SUBSTR(lForPayrollID, 5, 2) = '08') Or (SUBSTR(lForPayrollID, 5, 2) = '09') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0' || TO_NUMBER (SUBSTR(lForPayrollID, 5, 2)) || '31');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '11') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '1031');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '03') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0228');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '05') Or (SUBSTR(lForPayrollID, 5, 2) = '07') Or (SUBSTR(lForPayrollID, 5, 2) = '10') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0' || TO_NUMBER (SUBSTR(lForPayrollID, 5, 2)) || '30');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '12') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '1130');
+        End If;
+
+        iCOUNT:=0;
+        sQuery := 'Select * From Antiquities Where (AntiquityID>-1)';
+        OPEN c_cursor FOR sQuery;
+        LOOP
+                FETCH c_cursor INTO row_Antiquities;
+                EXIT WHEN c_cursor%NOTFOUND;
+                iCOUNT:=iCOUNT+1;
+                tTAntiquities(iCOUNT).AntiquityID:=TO_NUMBER(row_Antiquities.AntiquityID);
+                tTAntiquities(iCOUNT).StartYears:=TRUNC(TO_NUMBER(row_Antiquities.StartYears));
+                tTAntiquities(iCOUNT).EndYears:=TRUNC(TO_NUMBER(row_Antiquities.EndYears));
+        END LOOP;
+        CLOSE c_cursor;
+
+        --sCondition := ' AND (EmployeesHistoryList.EmployeeID < 1000)';
+        SELECT Split('0,0', ',') INTO aiDays FROM DUAL;
+
+        BEGIN
+        
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                -- 1
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesHistoryList.EmployeeID, EmployeesHistoryList.EmployeeDate, EmployeesHistoryList.EndDate, EmployeesHistoryList.JobID, StatusEmployees.Active, Reasons.ActiveEmployeeID' ||
+                               ' From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons ' || sQueryBegin || 
+                               ' Where (EmployeesHistoryList.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' ||
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID)' || 
+                               ' And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (StatusEmployees.Active=1) And (ActiveEmployeeID=1)' ||
+                               ' And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.EmployeeDate<=' || lForPayrollID || ') ' || sCondition ||
+                               ' Order By EmployeesHistoryList.EmployeeID, EmployeesHistoryList.EmployeeDate Desc';
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_EmployeeDate, v_EndDate, v_JobID, v_Active, v_ActiveEmployeeID;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQueryCV1;
+                End If;
+                iDay := 0;
+                sEmployeesFor44 := '';
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lEmployeeDate := v_EmployeeDate;
+                lEndDate := v_EndDate;
+                lJobID := v_JobID;
+                iActive := v_Active;
+                iActiveEmployeeID := v_ActiveEmployeeID;
+                WHILE c_cursor%FOUND
+                LOOP
+
+                    iDay := iDay + 1;
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                        LOOP
+                            If ((aiDays(2) / 365) >= tTAntiquities(i).StartYears) And ((aiDays(2) / 365) < tTAntiquities(i).EndYears) Then
+                                If tTAntiquities(i).AntiquityID >= 8 Then
+                                    If ((aiDays(2) >= 9125) And (aiDays(2) <= 9139)) Or ((aiDays(2) >= 10950) And (aiDays(2) <= 10964)) Then
+                                        sEmployeesFor44 := sEmployeesFor44 || lCurrentID || ',';
+                                    End If;
+                                End If;
+                                --lErrorNumber := AppendTextToFile(sFilePath & "_PayrollAntiquity_" (iCounter / ROWS_PER_FILE) & ".txt", lCurrentID & "," (iIndex)(0) & "," (1) & "," (0), sErrorDescription)
+                                iCOUNT:=iCOUNT+1;
+                                tTAntiqEmpToUpdate(iCOUNT).EmployeeID := lCurrentID;
+                                tTAntiqEmpToUpdate(iCOUNT).AntiquityID :=tTAntiquities(i).AntiquityID;
+                                tTAntiqEmpToUpdate(iCOUNT).StartYears :=aiDays(1);
+                                tTAntiqEmpToUpdate(iCOUNT).EndYears :=aiDays(2);
+                                Exit;
+                            End If;
+                        END LOOP;
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lEmployeeDate := v_EmployeeDate;
+                        lEndDate := v_EndDate;
+                        lJobID := v_JobID;
+                        iActive := v_Active;
+                        iActiveEmployeeID := v_ActiveEmployeeID;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lTempEndDate Then
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(lTempEndDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(v_EndDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lForPayrollID Then
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(lForPayrollID, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(v_EndDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    FETCH c_cursor INTO v_EmployeeID, v_EmployeeDate, v_EndDate, v_JobID, v_Active, v_ActiveEmployeeID;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+
+                FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                LOOP
+                    If ((aiDays(2) / 365) >= tTAntiquities(i).StartYears) And ((aiDays(2) / 365) < tTAntiquities(i).EndYears) Then
+                        If tTAntiquities(i).AntiquityID >= 8 Then
+                            If ((aiDays(2) >= 9125) And (aiDays(2) <= 9139)) Or ((aiDays(2) >= 10950) And (aiDays(2) <= 10964)) Then 
+                                sEmployeesFor44 := sEmployeesFor44 || lCurrentID || ',';
+                            End If;
+                        End If;
+                        --lErrorNumber := AppendTextToFile(sFilePath & "_PayrollAntiquity_" (iCounter / ROWS_PER_FILE) & ".txt", lCurrentID & "," (iIndex)(0) & "," (1) & "," (0), sErrorDescription)
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate(iCOUNT).AntiquityID :=tTAntiquities(i).AntiquityID;
+                        tTAntiqEmpToUpdate(iCOUNT).StartYears :=aiDays(1);
+                        tTAntiqEmpToUpdate(iCOUNT).EndYears :=aiDays(2);
+                        Exit;
+                    End If;
+                END LOOP;
+
+                <<NoRowsQueryCV1>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate.FIRST..tTAntiqEmpToUpdate.LAST
+                    LOOP
+                        BEGIN
+                            sQueryToInsert := 'Update Employees Set AntiquityID=' || tTAntiqEmpToUpdate(ix).AntiquityID || ', Antiquity2ID=-' || tTAntiqEmpToUpdate(ix).EndYears || ', Antiquity3ID=-' || tTAntiqEmpToUpdate(ix).StartYears || ' Where (EmployeeID=' || tTAntiqEmpToUpdate(ix).EmployeeID || ')';
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+
+                -- 2
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesAntiquitiesLKP.EmployeeID, AntiquityYears, AntiquityMonths, AntiquityDays' ||
+                               ' From EmployeesAntiquitiesLKP, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin ||
+                               ' Where (EmployeesAntiquitiesLKP.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID)' || 
+                               ' And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' || 
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                               ' And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' ||
+                               ' And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) ' || sCondition ||
+                               ' Order By EmployeesAntiquitiesLKP.EmployeeID';
+
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_AntiquityYears, v_AntiquityMonths, v_AntiquityDays;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery2;
+                End If;
+                --sEmployeesFor44 := '';
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lAntiquityYears := v_AntiquityYears;
+                lAntiquityMonths := v_AntiquityMonths;
+                lAntiquityDays := v_AntiquityDays;
+                WHILE c_cursor%FOUND
+                LOOP
+
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate2(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate2(iCOUNT).Days :=aiDays(1);
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lAntiquityYears := v_AntiquityYears;
+                        lAntiquityMonths := v_AntiquityMonths;
+                        lAntiquityDays := v_AntiquityDays;
+                    End If;
+
+                    aiDays(1) := aiDays(1) + (TO_NUMBER(v_AntiquityYears) * 365) + (TO_NUMBER(v_AntiquityMonths) * 30.4) + TO_NUMBER(v_AntiquityDays);
+
+                    FETCH c_cursor INTO v_EmployeeID, v_AntiquityYears, v_AntiquityMonths, v_AntiquityDays;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+                iCOUNT:=iCOUNT+1;
+                tTAntiqEmpToUpdate2(iCOUNT).EmployeeID := lCurrentID;
+                tTAntiqEmpToUpdate2(iCOUNT).Days :=aiDays(1);
+
+                <<NoRowsQuery2>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate2.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate2.FIRST..tTAntiqEmpToUpdate2.LAST
+                    LOOP
+                        BEGIN
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate2(ix).Days || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate2(ix).Days || ' Where (EmployeeID=' || tTAntiqEmpToUpdate2(ix).EmployeeID || ')';
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                iCountQuery := 0;
+
+                -- 3
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesAbsencesLKP.EmployeeID, EmployeesAbsencesLKP.OcurredDate, EmployeesAbsencesLKP.EndDate' ||
+                               ' From EmployeesAbsencesLKP, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || 
+                               ' Where (EmployeesAbsencesLKP.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID)' || 
+                               ' And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' || 
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                               ' And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' || 
+                               ' And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2)' || 
+                               ' And (EmployeesAbsencesLKP.AbsenceID In (10,95)) And (EmployeesAbsencesLKP.OcurredDate<=' || lForPayrollID || ') ' || sCondition || 
+                               ' Order By EmployeesAbsencesLKP.EmployeeID';
+                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(-1);
+                --commit;
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_OcurredDate, v_EndDate;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery3;
+                End If;
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lOcurredDate := v_OcurredDate;
+                lEndDate := v_EndDate;
+                WHILE c_cursor%FOUND
+                LOOP
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate3(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate3(iCOUNT).Days0 :=aiDays(1);
+                        tTAntiqEmpToUpdate3(iCOUNT).Days1 :=aiDays(2);
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lOcurredDate := v_OcurredDate;
+                        lEndDate := v_EndDate;
+                    End If;
+
+                    --aiDays(1) := aiDays(1) + (TO_NUMBER(v_AntiquityYears) * 365) + (TO_NUMBER(v_AntiquityMonths) * 30.4) + TO_NUMBER(v_AntiquityDays);
+                    If TO_NUMBER(v_EndDate) > lTempEndDate Then
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(lTempEndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lForPayrollID Then
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(lForPayrollID, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    End If;
+
+                    FETCH c_cursor INTO v_EmployeeID, v_OcurredDate, v_EndDate;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+                iCOUNT:=iCOUNT+1;
+                tTAntiqEmpToUpdate3(iCOUNT).EmployeeID := lCurrentID;
+                tTAntiqEmpToUpdate3(iCOUNT).Days0 :=aiDays(1);
+                tTAntiqEmpToUpdate3(iCOUNT).Days1 :=aiDays(2);
+
+                <<NoRowsQuery3>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate3.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate3.FIRST..tTAntiqEmpToUpdate3.LAST
+                    LOOP
+                        BEGIN
+                            iCountQuery := iCountQuery + 1;
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate3(ix).Days1 || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate3(ix).Days0 || ' Where (EmployeeID=' || tTAntiqEmpToUpdate3(ix).EmployeeID || ')';
+                            --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQueryToInsert, TO_CHAR(iCountQuery);
+                            --commit;
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                iCountQuery := 0;
+
+                -- 4
+                iCOUNT:=0;
+                iCountQuery:=0;
+                sQuery := 'Select Employees.EmployeeID, Antiquity2ID, Antiquity3ID' ||
+                        ' From Employees, EmployeesHistoryList, StatusEmployees, Reasons' || sQueryBegin ||
+                        ' Where (Employees.EmployeeID = EmployeesHistoryList.EmployeeID) And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                        ' And (EmployeesHistoryList.EmployeeDate<=' || lForPayrollID || ')' ||
+                        ' And (EmployeesHistoryList.EndDate>=' || lForPayrollID || ') And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' ||
+                        ' And (EmployeesHistoryList.EmployeeTypeID>-1) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (Antiquity2ID<0)' || sCondition ||
+                        ' Order By Employees.EmployeeID';
+                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(-1);
+                --commit;
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_Antiquity2ID, v_Antiquity3ID;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery4;
+                End If;
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lAntiquity2ID := v_Antiquity2ID;
+                lAntiquity3ID := v_Antiquity3ID;
+                WHILE c_cursor%FOUND
+                LOOP
+                    --iCountQuery:=iCountQuery+1;
+                    --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using TO_CHAR(iCountQuery), TO_CHAR(iCountQuery);
+                    --commit;
+                    FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                    LOOP
+
+                        If ((Abs(TO_NUMBER(v_Antiquity3ID)) / 365) >= tTAntiquities(i).StartYears) And ((Abs(TO_NUMBER(v_Antiquity3ID)) / 365) < tTAntiquities(i).EndYears) Then
+                            iDays := tTAntiquities(i).AntiquityID;
+                        End If;
+                        If ((Abs(TO_NUMBER(v_Antiquity2ID)) / 365) >= tTAntiquities(i).StartYears) And ((Abs(TO_NUMBER(v_Antiquity2ID)) / 365) < tTAntiquities(i).EndYears) Then
+                            iCOUNT:=iCOUNT+1;
+                            tTAntiqEmpToUpdate4(iCOUNT).EmployeeID := v_EmployeeID;
+                            tTAntiqEmpToUpdate4(iCOUNT).AntiquityID := tTAntiquities(i).AntiquityID;
+                            tTAntiqEmpToUpdate4(iCOUNT).Days := iDays;
+                            Exit;
+                        End If;
+                    End LOOP;
+                    FETCH c_cursor INTO v_EmployeeID, v_Antiquity2ID, v_Antiquity3ID;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+
+                <<NoRowsQuery4>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate4.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate4.FIRST..tTAntiqEmpToUpdate4.LAST
+                    LOOP
+                        BEGIN
+                            iCountQuery := iCountQuery + 1;
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate4(ix).AntiquityID || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate4(ix).Days || ' Where (EmployeeID=' || tTAntiqEmpToUpdate4(ix).EmployeeID || ')';
+                            --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQueryToInsert, TO_CHAR(iCountQuery);
+                            --commit;
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+
+
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            NULL;
+    END UpdateAntiquities;
+/

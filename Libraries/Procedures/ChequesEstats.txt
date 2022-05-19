@@ -1,0 +1,72 @@
+CREATE OR REPLACE PROCEDURE SIAP.ChequesEstats IS
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursorPayments CUR_TYP;
+    c_cursorPayroll CUR_TYP;
+    c_cursorPayrolls CUR_TYP;
+
+    sQueryPayments VARCHAR2(1000);
+    sQueryPayroll VARCHAR2(1000);
+    sQueryPayrolls VARCHAR2(1000);
+    --sInsert VARCHAR2(1000);
+    v_PaymentDate Payments.PaymentDate%TYPE;
+    v_user_tables user_tables.table_name%TYPE;
+    v_PayrollName Payrolls.PayrollName%TYPE;
+    bValorPayroll NUMBER;
+    bValorPayrolls NUMBER;
+
+BEGIN
+    --sQueryPayments := 'Select Distinct(PaymentDate) from Payments';
+    sQueryPayments := 'Select Distinct(Fec_Pago) from M4T_CTRL_CHEQUES2013';
+    OPEN c_cursorPayments FOR sQueryPayments;
+    LOOP
+        FETCH c_cursorPayments INTO v_PaymentDate;
+        EXIT WHEN c_cursorPayments%NOTFOUND;
+        --sOutString := sOutString || TO_CHAR(v_EmployeeID) || ';';
+
+        BEGIN
+            --sQueryPayroll := 'Select table_name from user_tables@siap_produccion Where table_name = ''Payroll_' || v_PaymentDate || '''';
+            sQueryPayroll := 'Select table_name from user_tables Where table_name = ''PAYROLL_' || v_PaymentDate || '0''';
+            OPEN c_cursorPayroll FOR sQueryPayroll;
+            --LOOP
+            FETCH c_cursorPayroll INTO v_user_tables;
+            If  c_cursorPayroll%NOTFOUND Then
+                bValorPayroll := 0;
+            Else
+                bValorPayroll := 1;
+            End If;
+            --END LOOP;
+            Close c_cursorPayroll;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        BEGIN
+            sQueryPayrolls := 'Select PayrollName from Payrolls Where PayrollID = ''' || v_PaymentDate || '0''';
+            OPEN c_cursorPayrolls FOR sQueryPayrolls;
+            --LOOP
+            FETCH c_cursorPayrolls INTO v_PayrollName;
+            If  c_cursorPayrolls%NOTFOUND Then
+                bValorPayrolls := 0;
+            Else
+                bValorPayrolls := 1;
+            End If;
+            --END LOOP;
+            Close c_cursorPayrolls;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        EXECUTE IMMEDIATE 'Insert Into PaymentsData (PaymentID, InPayroll, InPayrolls) Values (:s, :s, :s)' using To_Char(v_PaymentDate), To_Char(bValorPayroll), To_Char(bValorPayrolls);
+        commit;
+    END LOOP;
+EXCEPTION
+ WHEN NO_DATA_FOUND THEN
+   NULL;
+ WHEN OTHERS THEN
+   -- Consider logging the error and then re-raise
+   RAISE;
+END ChequesEstats;
+/

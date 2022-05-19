@@ -1,0 +1,4 @@
+DROP TYPE SIAP.SPLIT_TBL;
+
+CREATE OR REPLACE TYPE SIAP.split_tbl as table of varchar2(32767);
+/

@@ -1,0 +1,22 @@
+CREATE OR REPLACE PROCEDURE SIAP.GetFactorsAmountCount(iCount OUT NUMBER) IS
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    
+    v_RowCounts NUMBER;
+    sQuery VARCHAR2(200);
+
+BEGIN
+
+    sQuery := 'Select COUNT(*) From Payroll_Factors Where PayrollFactor=0';
+    OPEN c_cursor FOR sQuery;
+    FETCH c_cursor INTO iCount;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END GetFactorsAmountCount;
+/

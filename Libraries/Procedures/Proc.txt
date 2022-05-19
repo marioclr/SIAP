@@ -1,0 +1,2234 @@
+CREATE OR REPLACE PROCEDURE SIAP.UpdateCLC_RPT(lPayrollCLC  in varchar2, lPayrollCode in varchar2, lPayrollID in NUMBER, lPayrollTypeID in Number, lPayrollDescription in varchar2,lMemorandum in varchar2,lPayrollFile in varchar2, lCancelDate in Number, lPayrollYear in Number, lPayrollMonth in Number, lFortNightly in varchar2, lConditions in varchar2, lcount out number)  IS
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    c_cursor2 CUR_TYP;
+    
+     xEMPLOYEEID NUMBER;
+    sQuery VARCHAR2(10000);
+    rpt_employeeID    NUMBER;
+      xPAYROLLID          NUMBER;
+      xEMPLOYEEDATE       NUMBER;
+      xEMPLOYEENUMBER     VARCHAR2(100);
+      xCOMPANYID          NUMBER;
+      xCOMPANYNAME   VARCHAR2(255);
+      xJOBID              NUMBER;
+      xSERVICEID          NUMBER;
+      xZONEID             NUMBER;
+      xEMPLOYEETYPEID     NUMBER;
+      xPOSITIONTYPEID     NUMBER;
+      xCLASSIFICATIONID   NUMBER;
+      xGROUPGRADELEVELID  NUMBER;
+      xINTEGRATIONID      NUMBER;
+      xJOURNEYID          NUMBER;
+      xSHIFTID            NUMBER;
+      xWORKINGHOURS       NUMBER;
+      xAREAID             NUMBER;
+      xPOSITIONID         NUMBER;
+      xLEVELID            NUMBER;
+      xSTATUSID           NUMBER;
+      xPAYMENTCENTERID    NUMBER;
+      xRISKLEVEL          NUMBER;
+      xACTIVE             NUMBER;
+      xREASONID           NUMBER;
+      xMODIFYDATE         NUMBER;
+      xPAYROLLDATE        NUMBER;
+      xUSERID             NUMBER;
+      xACCOUNTNUMBER      VARCHAR2(100);
+      xBANKID             NUMBER;
+      xBANKNAME       VARCHAR2(255);
+      xPER NUMBER(18,3);
+      xLIQ NUMBER(18,3);
+      xDED   NUMBER(18,3);
+      xRECORDID          NUMBER;
+
+BEGIN
+
+lcount:=0 ;   
+ 
+sQuery := 'Select EHL.EmployeeID,  EHL.EMPLOYEEDATE, EHL.EMPLOYEENUMBER, EHL.COMPANYID ,EHL.JOBID, EHL.SERVICEID, EHL.ZONEID, 
+EHL.EMPLOYEETYPEID, EHL.POSITIONTYPEID, EHL.CLASSIFICATIONID, EHL.GROUPGRADELEVELID, EHL.INTEGRATIONID, EHL.JOURNEYID,
+ EHL.SHIFTID, EHL.WORKINGHOURS, EHL.AREAID, EHL.POSITIONID, EHL.LEVELID, EHL.STATUSID, EHL.PAYMENTCENTERID, EHL.RISKLEVEL,
+ EHL.ACTIVE, EHL.REASONID, EHL.MODIFYDATE, EHL.PAYROLLDATE, EHL.USERID, EHL.ACCOUNTNUMBER, EHL.BANKID From EmployeesHistoryListForPayroll EHL, PayrollsCLCs CLC  ,Zones Z, Areas A
+Where (EHL.PayrollID = '||lPayrollID||') And (EHL.PayrollID = CLC.PayrollID) 
+And (EHL.EmployeeID = CLC.EmployeeID) And (EHL.ZoneID = Z.ZoneID) And (A.AreaID = EHL.AreaID) '|| lConditions ;
+    
+    OPEN c_cursor FOR sQuery;
+    Loop
+        FETCH c_cursor INTO  xEMPLOYEEID, xEMPLOYEEDATE, xEMPLOYEENUMBER, xCOMPANYID, xJOBID, xSERVICEID, xZONEID, xEMPLOYEETYPEID, xPOSITIONTYPEID,  xCLASSIFICATIONID, 
+       xGROUPGRADELEVELID,   xINTEGRATIONID, xJOURNEYID, xSHIFTID,  xWORKINGHOURS, xAREAID,  xPOSITIONID,  xLEVELID,  xSTATUSID, xPAYMENTCENTERID, xRISKLEVEL, xACTIVE, xREASONID, 
+       xMODIFYDATE, xPAYROLLDATE, xUSERID, xACCOUNTNUMBER, xBANKID;
+   
+                   exit when c_cursor%notfound;    
+                 Begin
+                    sQuery2 := 'Select EMPLOYEEID From rpt_resumen_mensual_' || lPayrollYear || ' Where payrollID = ' || lPayrollID || ' And employeeID = ' || xEMPLOYEEID ||''''
+--                    Select EMPLOYEEID INTO rpt_employeeID 
+--                    From rpt_resumen_mensual
+--                    Where payrollID = lPayrollID
+--                    And employeeID = xEMPLOYEEID;
+                    OPEN c_cursor2 FOR sQuery2;
+                    FETCH c_cursor INTO rpt_employeeID;
+                    
+                    Update rpt_resumen_mensual Set PayrollCLC = ''||lPayrollCLC||'', PayrollCode =''||lPayrollCode||'', PayrollTypeID = ''||lPayrollTypeID||'', PayrollDescription = ''||lPayrollDescription||'', PayrollMemorandum = ''||lMemorandum||'',
+                    PayrollFile = ''||lPayrollFile||'', CancelDate = ''||lCancelDate||'', FortNightly = ''||lFortNightly||''
+                     Where PayrollID = lPayrollID 
+                     And employeeID = xEMPLOYEEID;   
+                  Exception
+                  WHEN no_data_found THEN
+                          SELECT BANKNAME INTO  xBANKNAME
+                          FROM BANKS
+                          WHERE BANKID = xBANKID;
+                          
+                          SELECT COMPANYNAME INTO xCOMPANYNAME
+                          FROM COMPANIES
+                          WHERE COMPANYID = xCOMPANYID;
+                          
+                          xLIQ:=0;
+                           xDED:=0;
+                           xPER:=0;    
+                           
+                           BEGIN
+                                   SELECT CONCEPTAMOUNT  INTO xPER
+                                  FROM suma_cptos_payroll || '_' || lPayrollYear
+                                  WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=lPayrollID AND CONCEPTID=-1;                        
+                            EXCEPTION                        
+                            WHEN no_data_found THEN
+                                    xPER := 0; 
+                            END;
+                           
+                            BEGIN  
+                                    SELECT CONCEPTAMOUNT  INTO xDED
+                                      FROM suma_cptos_payroll
+                                      WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=lPayrollID AND CONCEPTID=-2;              
+                            EXCEPTION                        
+                            WHEN no_data_found THEN
+                                    xDED := 0;
+                            END;
+                             BEGIN                
+                                      SELECT CONCEPTAMOUNT  INTO xLIQ
+                                      FROM suma_cptos_payroll
+                                      WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=lPayrollID AND CONCEPTID=0;                        
+                            EXCEPTION                        
+                            WHEN no_data_found THEN
+                                    xLIQ := 0; 
+                            END; 
+                            
+                            INSERT INTO rpt_resumen_mensual (EMPLOYEEID, PAYROLLID,  EMPLOYEEDATE, EMPLOYEENUMBER, COMPANYID, COMPANYNAME, JOBID, SERVICEID, ZONEID, EMPLOYEETYPEID, POSITIONTYPEID,  
+                         CLASSIFICATIONID, GROUPGRADELEVELID,   INTEGRATIONID, JOURNEYID, SHIFTID,  WORKINGHOURS, AREAID,  POSITIONID,  LEVELID,  STATUSID, PAYMENTCENTERID, RISKLEVEL, ACTIVE, 
+                         REASONID, MODIFYDATE, PAYROLLDATE, USERID, ACCOUNTNUMBER, BANKID, BANKNAME, PAYROLLCODE, PAYROLLCLC, PERCEPCIONES, DEDUCCIONES, LIQUIDO)
+                         VALUES                                       ( xEMPLOYEEID, lPayrollID,  xEMPLOYEEDATE, xEMPLOYEENUMBER, xCOMPANYID, xCOMPANYNAME, xJOBID, xSERVICEID, xZONEID, xEMPLOYEETYPEID, xPOSITIONTYPEID,  
+                         xCLASSIFICATIONID, xGROUPGRADELEVELID, xINTEGRATIONID, xJOURNEYID, xSHIFTID,  xWORKINGHOURS, xAREAID, xPOSITIONID,  xLEVELID,  xSTATUSID, xPAYMENTCENTERID, xRISKLEVEL, xACTIVE, 
+                         xREASONID, xMODIFYDATE, xPAYROLLDATE, xUSERID, xACCOUNTNUMBER, xBANKID, xBANKNAME, lPayrollCode, lPayrollCLC, xPER, xDED, xLIQ);
+                  End;         
+           
+             Update PayrollsCLCs Set PayrollCLC = ''||lPayrollCLC||'', PayrollCode =''||lPayrollCode||'', PayrollTypeID = lPayrollTypeID, PayrollDescription = ''||lPayrollDescription||'', PayrollMemorandum = ''||lMemorandum||'',
+             PayrollFile = ''||lPayrollFile||'', CancelDate = lCancelDate, PayrollYear = lPayrollYear, PayrollMonth = lPayrollMonth, FortNightly = ''||lFortNightly||''
+                Where PayrollID = lPayrollID 
+                And employeeID In (xEMPLOYEEID);
+               lcount := lcount+1;
+               
+   END LOOP;
+    
+    Close c_cursor;
+   Commit;          
+END UpdateCLC_RPT;
+/
+
+
+
+CREATE OR REPLACE PROCEDURE SIAP."CREATEANDRUNFILES"(iFileType NUMBER, lPayrollID NUMBER, lForPayrollID NUMBER, iPayrollType NUMBER, sConditions VARCHAR2 := '', iInsertCounts OUT NUMBER) IS
+
+CURSOR ConceptsVals1 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID=1) 
+        --And (ConceptAmount>0)
+        --AND (RecordID IN (34625,34624,34627,34615,34630,34621,34629,34634,34618,34617,34631,34632,34628,34620,34623,34616,34626,34619,34633,34622,34613))
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc, 
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc, 
+        ForRisk Desc, GenderID Desc, HasSyndicate Desc;
+
+CURSOR ConceptsVals2 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID=2) And (Concepts.ConceptID Not In (70)) And (ConceptAmount>0)
+        --And (ConceptsValues.AppliesToID = '1,5') And (ConceptsValues.EmployeeStatusID IN (0,149, 159))
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc, 
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc, 
+        ForRisk Desc, GenderID Desc, HasSyndicate Desc;
+
+CURSOR ConceptsVals3 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID In (3,13)) And (ConceptAmount>0)
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc, 
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc, 
+        ForRisk Desc, GenderID Desc, HasSyndicate Desc;
+
+CURSOR ConceptsVals8 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID In (8,9)) And (ConceptAmount>0)
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc, 
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc, 
+        ForRisk Desc, GenderID Desc, HasSyndicate Desc;
+
+CURSOR ConceptsVals15 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID In (22)) And (ConceptAmount>0)
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc,
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc,
+        ForRisk Desc, GenderID Desc, SchoolarshipID Desc, HasSyndicate Desc;
+
+CURSOR ConceptsVals69 (PayrollDate IN NUMBER, SpecialCondition IN VARCHAR2) IS
+    Select ConceptsValues.*, Concepts.PeriodID, Antiquities.StartYears, Antiquities.EndYears, Antiquities2.StartYears StartYears2, Antiquities2.EndYears EndYears2, Antiquities3.StartYears StartYears3, Antiquities3.EndYears EndYears3, Antiquities4.StartYears StartYears4, Antiquities4.EndYears EndYears4
+    From ConceptsValues, Concepts, Antiquities, Antiquities Antiquities2, Antiquities Antiquities3, Antiquities Antiquities4 
+    Where (ConceptsValues.ConceptID=Concepts.ConceptID) And (ConceptsValues.AntiquityID=Antiquities.AntiquityID) And (ConceptsValues.Antiquity2ID=Antiquities2.AntiquityID) And (ConceptsValues.Antiquity3ID=Antiquities3.AntiquityID) 
+        And (ConceptsValues.Antiquity4ID=Antiquities4.AntiquityID) And (ConceptsValues.StartDate<= PayrollDate) And (ConceptsValues.EndDate>= PayrollDate) And (Concepts.StartDate<=PayrollDate) And (Concepts.EndDate>=PayrollDate)
+        AND (ConceptQttyID In (2)) And (Concepts.ConceptID In (70)) And (ConceptAmount>0)
+    Order By Concepts.OrderInList, Concepts.ConceptID, CompanyID Desc, EmployeeTypeID Desc, 
+        PositionTypeID Desc, EmployeeStatusID Desc, JobStatusID Desc, ClassificationID Desc, 
+        GroupGradeLevelID Desc, IntegrationID Desc, JourneyID Desc, WorkingHours Desc, 
+        AdditionalShift Desc, LevelID Desc, EconomicZoneID Desc, ServiceID Desc, 
+        ConceptsValues.AntiquityID Desc, ConceptsValues.Antiquity2ID Desc,
+        ConceptsValues.Antiquity3ID Desc, ConceptsValues.Antiquity4ID Desc,
+        ForRisk Desc, GenderID Desc, SchoolarshipID Desc, HasSyndicate Desc;
+
+    ConceptsValues_rec1 ConceptsVals1%ROWTYPE;
+    ConceptsValues_rec2 ConceptsVals2%ROWTYPE;
+    ConceptsValues_rec3 ConceptsVals3%ROWTYPE;
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    row_Empleado EmployeesHistoryList%ROWTYPE;
+    row_CV2 SYS_REFCURSOR;
+
+    Type ContentConceptsValues1 IS RECORD(
+        ConceptID NUMBER(5),
+        ConceptAmount FLOAT,
+        PeriodID NUMBER(5),
+        sRecordCondition VARCHAR2(9000)
+    );
+
+    Type ContentConceptsValues2 IS RECORD(
+        ConceptID NUMBER(5),
+        ConceptAmount FLOAT,
+        PeriodID NUMBER(5),
+        AppliesToID VARCHAR2(100),
+        ConceptMin VARCHAR2(100),
+        ConceptMinQttyID VARCHAR2(100),
+        ConceptMax VARCHAR2(100),
+        ConceptMaxQttyID VARCHAR2(100),
+        sRecordCondition VARCHAR2(9000)
+    );
+
+    Type ContentConceptsValues3 IS RECORD(
+        ConceptID NUMBER(5),
+        ConceptAmount FLOAT,
+        PeriodID NUMBER(5),
+        ConceptQttyID NUMBER(5),
+        ConceptMin VARCHAR2(100),
+        ConceptMinQttyID VARCHAR2(100),
+        ConceptMax VARCHAR2(100),
+        ConceptMaxQttyID VARCHAR2(100),
+        sRecordCondition VARCHAR2(9000)
+    );
+
+    TYPE TConceptsValues1 IS TABLE OF ContentConceptsValues1 INDEX BY BINARY_INTEGER;
+    tTConceptsValues1 TConceptsValues1;
+    TYPE TConceptsValues2 IS TABLE OF ContentConceptsValues2 INDEX BY BINARY_INTEGER;
+    tTConceptsValues2 TConceptsValues2;
+    TYPE TConceptsValues3 IS TABLE OF ContentConceptsValues3 INDEX BY BINARY_INTEGER;
+    tTConceptsValues3 TConceptsValues3;
+    iCOUNT NUMBER;
+    iCountQuery NUMBER;
+
+    v_EmployeeID EmployeesHistoryList.EmployeeID%TYPE;
+    v_EconomicZoneID Areas.EconomicZoneID%TYPE; 
+    v_ZoneTypeID Zones.ZoneTypeID%TYPE;
+    v_ZoneTypeID2 Zones.ZoneTypeID%TYPE;
+    v_ConceptAmount  ConceptsValues.ConceptAmount%TYPE; 
+    v_IsDeduction Concepts.IsDeduction%TYPE;
+    v_CurrencyValue CurrenciesHistoryList.CurrencyValue%TYPE;
+
+    Type CV1EmpToInsert IS RECORD(
+        ConceptID NUMBER(5),
+        ConceptAmount FLOAT,
+        EmployeeID NUMBER(8)
+    );
+
+    TYPE TCV1EmpToInsert IS TABLE OF CV1EmpToInsert INDEX BY BINARY_INTEGER;
+    tTCV1EmpToInsert TCV1EmpToInsert;
+    iCOUNTI NUMBER;
+    iCOUNTJ NUMBER;
+    iQueryCount NUMBER;
+
+    lPayID NUMBER;
+    adDSM SPLIT_TBL;
+    sCondition VARCHAR2(9000);
+    sConditionArmada VARCHAR2(9000);
+    sQuery VARCHAR2(9000);
+    sQueryBegin VARCHAR2(2000);
+    sQueryBeginToInsert VARCHAR2(2000);
+    sQueryEndToInsert VARCHAR2(2000);
+    sQueryToInsert VARCHAR2(3000);
+    sPeriods VARCHAR2(100);
+    sTable VARCHAR2(100);
+
+-- Caso 2
+    sCurrentID VARCHAR2(9000);
+    iCurrentZoneID NUMBER;
+    iCurrentZoneTypeID NUMBER;
+    dAmount FLOAT;
+    dTaxAmount FLOAT;
+    bMinMaxApplied BOOLEAN;
+    iLenQuery NUMBER;
+
+    horaIni TIMESTAMP;
+    horaFin TIMESTAMP;
+    --v_aux NUMBER;
+    dateDif VARCHAR2(1000);
+    --a INTERVAL DAY TO SECOND;
+    --sQueryHint VARCHAR2(2000);
+
+BEGIN
+    --DBMS_OUTPUT.ENABLE();
+    sTable := 'Payroll_' || TO_CHAR(lPayrollID);
+    iCOUNT:=0;
+    iCOUNTJ := 0;
+    iInsertCounts:=0;
+    sQueryBeginToInsert := 'Insert Into Payroll_' || lPayrollID || ' (RecordDate, RecordID, EmployeeID, ConceptID, PayrollTypeID, ConceptAmount, ConceptTaxes, ConceptRetention, UserID) Values (' || lForPayrollID || ', 1, ';
+    sQueryEndToInsert := ', 0, 0, 3' || ')';
+
+    lPayID := lForPayrollID;
+    sPeriods := GetPeriodsForPayroll(lPayrollID, lForPayrollID, -1);
+    adDSM := GetCurrencyValue(lForPayrollID);
+    sTable := 'Payroll_' || TO_CHAR(lPayrollID);
+    IF (iPayrollType=3) THEN
+        sTable := 'Payroll_' || TO_CHAR(lForPayrollID);
+    END IF;
+
+    If (iFileType = 1) Then
+        OPEN ConceptsVals1(lPayrollID, sCondition);        
+        LOOP
+            sConditionArmada := '';
+            --DBMS_OUTPUT.PUT_LINE(ConceptsVals%ROWCOUNT);
+            FETCH ConceptsVals1 INTO ConceptsValues_rec1;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec1.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec1.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec1.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec1.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec1.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec1.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec1.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec1.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec1.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec1.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec1.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec1.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec1.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec1.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec1.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec1.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec1.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec1.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec1.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec1.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec1.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec1.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues1(iCOUNT).ConceptID:=ConceptsValues_rec1.ConceptID;
+                 tTConceptsValues1(iCOUNT).ConceptAmount:=ConceptsValues_rec1.ConceptAmount;
+                 tTConceptsValues1(iCOUNT).PeriodID:=ConceptsValues_rec1.PeriodID;
+                 tTConceptsValues1(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals1%NOTFOUND; -- Último registro.
+        END LOOP;
+
+        iQueryCount := 0;
+        FOR i IN tTConceptsValues1.FIRST..tTConceptsValues1.LAST
+        LOOP
+                sQueryBegin := ' ';
+                --sQueryHint := 'REASONS,STATUSEMPLOYEES,EMPLOYEESHISTORYLIST,EMPLOYEESCHANGESLKP';
+                tTConceptsValues1(i).sRecordCondition := tTConceptsValues1(i).sRecordCondition || sConditions;                
+                If ((InStr(tTConceptsValues1(i).sRecordCondition, '(Jobs.') > 0) Or (InStr(tTConceptsValues1(i).sRecordCondition, ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (JobTypeID=3)') > 0)) Then
+                    sQueryBegin := sQueryBegin || ', Jobs';
+                    --sQueryHint := 'Jobs,' || sQueryHint;
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues1(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                    --sQueryHint := 'EmployeesRevisions,' || sQueryHint;
+                END IF;
+                If (InStr(tTConceptsValues1(i).sRecordCondition, '(Zones.') > 0) Then
+                    sQueryBegin := sQueryBegin || ', Zones';
+                    --sQueryHint := 'Zones,' || sQueryHint;
+                END IF;
+                If (InStr(tTConceptsValues1(i).sRecordCondition, '(Areas.') > 0) Then
+                    sQueryBegin := sQueryBegin || ', Areas';
+                    --sQueryHint := 'Areas,' || sQueryHint;
+                END IF;                
+                If (InStr(tTConceptsValues1(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues1(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                    --sQueryHint := 'Employees,' || sQueryHint;
+                END IF;                
+                If (InStr(tTConceptsValues1(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                    --sQueryHint := 'EmployeesChildrenLKP,' || sQueryHint;
+                END IF;                
+                If (InStr(tTConceptsValues1(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                    --sQueryHint := 'EmployeesRisksLKP,' || sQueryHint;
+                END IF;
+                If (InStr(tTConceptsValues1(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                    --sQueryHint := 'EmployeesSyndicatesLKP,' || sQueryHint;
+                END IF;
+                --If ((InStr(tTConceptsValues1(i).sRecordCondition, ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (JobTypeID=3)') > 0) And (InStr(sQueryBegin, 'Jobs') = 0)) Then
+                --    sQueryBegin := sQueryBegin || ', Jobs';                    
+                --END IF;
+                --v_aux := InStr(sQueryBegin, 'Jobs');
+                -- Anterior solo con EmployeeID
+                --sQuery := 'Select EmployeesHistoryList.EmployeeID From EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayrollID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) ' || tTConceptsValues1(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                -- Nuevo con todos los campos
+
+                --horaIni := sysdate;
+                SELECT SYSTIMESTAMP Into horaIni FROM DUAL;
+                
+                sQuery := 'Select /*+ INDEX_JOIN(EMPLOYEESHISTORYLIST) */ EmployeesHistoryList.* From EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lForPayrollID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) ' || tTConceptsValues1(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                --sQuery := 'Select /*+  USE_MERGE(' || sQueryHint || ') */ EmployeesHistoryList.* From EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lForPayrollID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) ' || tTConceptsValues1(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                iQueryCount := iQueryCount + 1;
+                iCOUNTI := 0;
+                BEGIN
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN c_cursor FOR sQuery;
+                    LOOP
+                            FETCH c_cursor INTO row_Empleado;
+                            EXIT WHEN c_cursor%NOTFOUND;
+                            iCOUNTI:=iCOUNTI+1;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues1(i).ConceptID;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=tTConceptsValues1(i).ConceptAmount;
+                            tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(row_Empleado.EmployeeID);
+                    END LOOP;
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN                    
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                sQueryToInsert := sQueryBeginToInsert || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || sQueryEndToInsert;
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                iInsertCounts:=iInsertCounts+1;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+                
+                --horaFin := sysdate;
+                SELECT SYSTIMESTAMP Into horaFin FROM DUAL;
+                dateDif := TO_CHAR(horaFin - horaIni,'HH:MI:SS');
+                --v_aux := (horaFin - horaFin);
+                --v_aux := 1;
+                --a := NUMTODSINTERVAL (v_aux,'Day');
+                
+                DBMS_OUTPUT.PUT_LINE(sQuery);
+                EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID, DateDif) Values (:s, :s, :s)' using sQuery, iQueryCount, dateDif;
+                commit;
+        END LOOP;
+        
+        dbms_stats.gather_table_stats('SIAP','PAYROLL_' || lPayrollID, ESTIMATE_PERCENT=>25, METHOD_OPT=>'for all indexed columns size auto', CASCADE=>True);
+
+    ElsIf (iFileType = 2) Then
+        iCountQuery := 0;
+        OPEN ConceptsVals2(lPayrollID, sCondition);
+        LOOP
+            sConditionArmada := '';
+            FETCH ConceptsVals2 INTO ConceptsValues_rec2;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec2.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec2.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec2.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec2.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec2.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec2.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec2.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec2.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec2.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec2.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec2.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec2.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec2.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec2.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec2.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec2.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec2.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec2.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec2.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec2.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec2.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec2.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues2(iCOUNT).ConceptID:=ConceptsValues_rec2.ConceptID;
+                 tTConceptsValues2(iCOUNT).ConceptAmount:=ConceptsValues_rec2.ConceptAmount;
+                 tTConceptsValues2(iCOUNT).PeriodID:=ConceptsValues_rec2.PeriodID;
+                 tTConceptsValues2(iCOUNT).AppliesToID:=ConceptsValues_rec2.AppliesToID;
+                 tTConceptsValues2(iCOUNT).ConceptMin:=ConceptsValues_rec2.ConceptMin;
+                 tTConceptsValues2(iCOUNT).ConceptMinQttyID:=ConceptsValues_rec2.ConceptMinQttyID;
+                 tTConceptsValues2(iCOUNT).ConceptMax:=ConceptsValues_rec2.ConceptMax;
+                 tTConceptsValues2(iCOUNT).ConceptMaxQttyID:=ConceptsValues_rec2.ConceptMaxQttyID;
+                 tTConceptsValues2(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals2%NOTFOUND; -- Último registro.
+        END LOOP;
+
+        FOR i IN tTConceptsValues2.FIRST..tTConceptsValues2.LAST
+        LOOP
+                sQueryBegin := '';
+                tTConceptsValues2(i).sRecordCondition := tTConceptsValues2(i).sRecordCondition || sConditions;
+                If (InStr(tTConceptsValues2(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues2(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                END IF;
+                If (InStr(tTConceptsValues2(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                END IF;
+                If (InStr(tTConceptsValues2(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                END IF;
+                If (InStr(tTConceptsValues2(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues2(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                END IF;
+
+                iCountQuery := iCountQuery+1;
+                sQuery := 'Select EmployeesHistoryList.EmployeeID, Areas.EconomicZoneID, Zones.ZoneTypeID, Sum(ConceptAmount) As TotalAmount, IsDeduction From ' || sTable || ', Concepts, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons, Jobs, Areas, Zones ' || sQueryBegin || ' Where (' || sTable || '.ConceptID=Concepts.ConceptID) And (EmployeesHistoryList.EmployeeID=' || sTable ||  '.EmployeeID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2)  And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (' || sTable || '.RecordDate=' || lPayrollID || ') And (' || sTable || '.ConceptID In (' || tTConceptsValues2(i).AppliesToID || ')) And (Concepts.StartDate<=' || lForPayrollID || ') And (Concepts.EndDate>=' || lForPayrollID || ') ' || tTConceptsValues2(i).sRecordCondition || ' Group By EmployeesHistoryList.EmployeeID, Areas.EconomicZoneID, Zones.ZoneTypeID, IsDeduction Order By EmployeesHistoryList.EmployeeID';
+                iLenQuery := LENGTH(sQuery);
+                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(iCountQuery);
+                --commit;
+
+                iCOUNTI := 0;
+                BEGIN
+
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN c_cursor FOR sQuery;
+                    FETCH c_cursor INTO v_EmployeeID, v_EconomicZoneID, v_ZoneTypeID, v_ConceptAmount, v_IsDeduction;
+                    If  c_cursor%NOTFOUND Then
+                        GoTo NoRowsQueryCV2;
+                    End If;
+                    sCurrentID := v_EmployeeID;
+                    iCurrentZoneID := v_EconomicZoneID;
+                    iCurrentZoneTypeID := v_ZoneTypeID;
+                    dAmount := 0;
+                    dTaxAmount := TO_NUMBER(tTConceptsValues2(i).ConceptAmount) / 100;
+                    bMinMaxApplied := False;
+                    WHILE c_cursor%FOUND
+                    LOOP
+                            If (sCurrentID <> v_EmployeeID) Then
+                                If TO_NUMBER( tTConceptsValues2(i).ConceptMin ) > 0 Then
+                                    If TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 3 Then
+                                        If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 13 Then
+                                        If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 23 Then
+                                        If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 24 Then
+                                        If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 25 Then
+                                        If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 33 Then
+                                        If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 34 Then
+                                        If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 35 Then
+                                        If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4)) Then
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4);
+                                        End If;
+                                    Else
+                                        dAmount := dAmount * dTaxAmount;
+                                        bMinMaxApplied := True;
+                                        If dAmount < TO_NUMBER(tTConceptsValues2(i).ConceptMin) Then 
+                                            dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin);
+                                        End If;
+                                    End If;
+                                End If;
+                                If TO_NUMBER( tTConceptsValues2(i).ConceptMax ) > 0 Then
+                                    If TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 3 Then
+                                        If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 13 Then
+                                        If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 23 Then
+                                        If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 24 Then
+                                        If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 25 Then
+                                        If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 33 Then
+                                        If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3);
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 34 Then
+                                        If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4);
+                                            bMinMaxApplied := True;
+                                        End If;
+                                    ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 35 Then
+                                        If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4)) Then
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4);
+                                        End If;
+                                    Else
+                                        dAmount := dAmount * dTaxAmount;
+                                        bMinMaxApplied := True;
+                                        If dAmount > TO_NUMBER( tTConceptsValues2(i).ConceptMax ) Then 
+                                            dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax );
+                                        End If;
+                                    End If;
+                                End If;
+                                If Not bMinMaxApplied Then 
+                                    dAmount := dAmount * dTaxAmount;
+                                End If;
+                                -- Insertar 
+                                iCOUNTI:=iCOUNTI+1;
+                                tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues2(i).ConceptID;
+                                tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=dAmount;
+                                tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(sCurrentID);
+                                sCurrentID := v_EmployeeID;
+                                iCurrentZoneID := TO_NUMBER(v_EconomicZoneID);
+                                iCurrentZoneTypeID := TO_NUMBER(v_ZoneTypeID);
+                                dAmount := 0;
+                                bMinMaxApplied := False;
+                            End If;
+                            If TO_NUMBER(v_IsDeduction) = 0 Then
+                                dAmount := dAmount + TO_NUMBER(v_ConceptAmount);
+                            Else
+                                dAmount := dAmount - TO_NUMBER(v_ConceptAmount);
+                            End If;
+                            FETCH c_cursor INTO v_EmployeeID, v_EconomicZoneID, v_ZoneTypeID, v_ConceptAmount, v_IsDeduction;
+                            EXIT WHEN c_cursor%NOTFOUND;
+                    END LOOP;
+
+                    If TO_NUMBER( tTConceptsValues2(i).ConceptMin ) > 0 Then
+                        If TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 3 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 13 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 23 Then
+                            If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneTypeID);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 24 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 25 Then
+                            If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(1);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 33 Then
+                            If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(iCurrentZoneID + 3);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 34 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMinQttyID ) = 35 Then
+                            If dAmount < (TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin) * adDSM(4);
+                            End If;
+                        Else
+                            dAmount := dAmount * dTaxAmount;
+                            bMinMaxApplied := True;
+                            If dAmount < TO_NUMBER(tTConceptsValues2(i).ConceptMin) Then 
+                                dAmount := TO_NUMBER(tTConceptsValues2(i).ConceptMin);
+                            End If;
+                        End If;
+                    End If;
+                    If TO_NUMBER( tTConceptsValues2(i).ConceptMax ) > 0 Then
+                        If TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 3 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 13 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 23 Then
+                            If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneTypeID);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 24 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 25 Then
+                            If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(1);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 33 Then
+                            If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(iCurrentZoneID + 3);
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 34 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER( tTConceptsValues2(i).ConceptMaxQttyID ) = 35 Then
+                            If dAmount > (TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4)) Then
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax ) * adDSM(4);
+                            End If;
+                        Else
+                            dAmount := dAmount * dTaxAmount;
+                            bMinMaxApplied := True;
+                            If dAmount > TO_NUMBER( tTConceptsValues2(i).ConceptMax ) Then 
+                                dAmount := TO_NUMBER( tTConceptsValues2(i).ConceptMax );
+                            End If;
+                        End If;
+                    End If;
+                    If Not bMinMaxApplied Then 
+                        dAmount := dAmount * dTaxAmount;
+                    End If;
+
+                    -- Insertar 
+                    iCOUNTI:=iCOUNTI+1;
+                    tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues2(i).ConceptID;
+                    tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=dAmount;
+                    tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(sCurrentID);
+
+                    <<NoRowsQueryCV2>>
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                sQueryToInsert := 'Insert Into Payroll_' || lPayrollID || ' (RecordDate, RecordID, EmployeeID, ConceptID, PayrollTypeID, ConceptAmount, ConceptTaxes, ConceptRetention, UserID) Values (' || lForPayrollID || ', 1, ' || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || ', 0, 0, ' || '3)';
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                iInsertCounts:=iInsertCounts+1;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+
+        END LOOP;
+
+        dbms_stats.gather_table_stats('SIAP','PAYROLL_' || lPayrollID, ESTIMATE_PERCENT=>25, METHOD_OPT=>'for all indexed columns size auto', CASCADE=>True);
+
+    ElsIf (iFileType = 3) Then
+        iCountQuery := 0;
+        OPEN ConceptsVals3(lPayrollID, sCondition);
+        LOOP
+            sConditionArmada := '';
+            FETCH ConceptsVals3 INTO ConceptsValues_rec3;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec3.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec3.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec3.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec3.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec3.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec3.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec3.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec3.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec3.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec3.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec3.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec3.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec3.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec3.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec3.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec3.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec3.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec3.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec3.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec3.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec3.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues3(iCOUNT).ConceptID:=ConceptsValues_rec3.ConceptID;
+                 tTConceptsValues3(iCOUNT).ConceptAmount:=ConceptsValues_rec3.ConceptAmount;
+                 tTConceptsValues3(iCOUNT).PeriodID:=ConceptsValues_rec3.PeriodID;
+                 tTConceptsValues3(iCOUNT).ConceptQttyID:=ConceptsValues_rec3.ConceptQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMin:=ConceptsValues_rec3.ConceptMin;
+                 tTConceptsValues3(iCOUNT).ConceptMinQttyID:=ConceptsValues_rec3.ConceptMinQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMax:=ConceptsValues_rec3.ConceptMax;
+                 tTConceptsValues3(iCOUNT).ConceptMaxQttyID:=ConceptsValues_rec3.ConceptMaxQttyID;
+                 tTConceptsValues3(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals3%NOTFOUND; -- Último registro.
+        END LOOP;
+        
+        FOR i IN tTConceptsValues3.FIRST..tTConceptsValues3.LAST
+        LOOP
+                sQueryBegin := '';
+                tTConceptsValues3(i).sRecordCondition := tTConceptsValues3(i).sRecordCondition || sConditions;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues3(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                END IF;
+
+                If TO_NUMBER(tTConceptsValues3(i).ConceptQttyID) = 3 Then
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, Zones.ZoneTypeID, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Zones.ZoneTypeID=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                Else
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, ZoneTypes.ZoneTypeID2, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, ZoneTypes, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Areas.EconomicZoneID=ZoneTypes.ZoneTypeID) And (ZoneTypes.ZoneTypeID2=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                END IF;
+--                iCountQuery := iCountQuery+1;
+--                EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(iCountQuery);
+--                commit;
+
+                iCOUNTI := 0;
+                BEGIN
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN c_cursor FOR sQuery;
+                    LOOP
+                            EXIT WHEN c_cursor%NOTFOUND;
+                            If TO_NUMBER(tTConceptsValues3(i).ConceptQttyID) = 3 Then
+                                FETCH c_cursor INTO v_EmployeeID, v_ZoneTypeID, v_CurrencyValue;
+                            Else
+                                FETCH c_cursor INTO v_EmployeeID, v_ZoneTypeID2, v_CurrencyValue;
+                            End If;
+                            
+                            iCOUNTI:=iCOUNTI+1;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues3(i).ConceptID;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=tTConceptsValues3(i).ConceptAmount * TO_NUMBER(v_CurrencyValue);
+                            tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(v_EmployeeID);
+                    END LOOP;
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                sQueryToInsert := 'Insert Into Payroll_' || lPayrollID || ' (RecordDate, RecordID, EmployeeID, ConceptID, PayrollTypeID, ConceptAmount, ConceptTaxes, ConceptRetention, UserID) Values (' || lForPayrollID || ', 1, ' || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || ', 0, 0, ' || '3)';
+                                --iCountQuery := iCountQuery+1;
+                                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQueryToInsert, TO_CHAR(iCountQuery);
+                                --commit;
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                iInsertCounts:=iInsertCounts+1;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+
+        END LOOP;
+
+        dbms_stats.gather_table_stats('SIAP','PAYROLL_' || lPayrollID, ESTIMATE_PERCENT=>25, METHOD_OPT=>'for all indexed columns size auto', CASCADE=>True);
+
+    ElsIf (iFileType = 8) Then
+        OPEN ConceptsVals3(lPayrollID, sCondition);
+        LOOP
+            sConditionArmada := '';
+            --DBMS_OUTPUT.PUT_LINE(ConceptsVals%ROWCOUNT);
+            FETCH ConceptsVals3 INTO ConceptsValues_rec3;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec3.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec3.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec3.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec3.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec3.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec3.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec3.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec3.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec3.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec3.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec3.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec3.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec3.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec3.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec3.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec3.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec3.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec3.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec3.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec3.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec3.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues3(iCOUNT).ConceptID:=ConceptsValues_rec3.ConceptID;
+                 tTConceptsValues3(iCOUNT).ConceptAmount:=ConceptsValues_rec3.ConceptAmount;
+                 tTConceptsValues3(iCOUNT).PeriodID:=ConceptsValues_rec3.PeriodID;
+                 tTConceptsValues3(iCOUNT).ConceptQttyID:=ConceptsValues_rec3.ConceptQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMin:=ConceptsValues_rec3.ConceptMin;
+                 tTConceptsValues3(iCOUNT).ConceptMinQttyID:=ConceptsValues_rec3.ConceptMinQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMax:=ConceptsValues_rec3.ConceptMax;
+                 tTConceptsValues3(iCOUNT).ConceptMaxQttyID:=ConceptsValues_rec3.ConceptMaxQttyID;
+                 tTConceptsValues3(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals3%NOTFOUND; -- Último registro.
+        END LOOP;
+        
+        FOR i IN tTConceptsValues3.FIRST..tTConceptsValues3.LAST
+        LOOP
+                sQueryBegin := '';
+                tTConceptsValues3(i).sRecordCondition := tTConceptsValues3(i).sRecordCondition || sConditions;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues3(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                END IF;
+
+                If TO_NUMBER(tTConceptsValues3(i).ConceptQttyID) = 3 Then
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, Zones.ZoneTypeID, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Zones.ZoneTypeID=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                Else
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, ZoneTypes.ZoneTypeID2, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, ZoneTypes, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Areas.EconomicZoneID=ZoneTypes.ZoneTypeID) And (ZoneTypes.ZoneTypeID2=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                END IF;
+
+                iCOUNTI := 0;
+                BEGIN
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN row_CV2 FOR sQuery;
+                    LOOP
+                            FETCH c_cursor INTO v_EmployeeID, v_EconomicZoneID, v_ZoneTypeID, v_ConceptAmount, v_IsDeduction;
+                            EXIT WHEN c_cursor%NOTFOUND;
+                            iCOUNTI:=iCOUNTI+1;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues1(i).ConceptID;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=tTConceptsValues1(i).ConceptAmount;
+                            tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(row_Empleado.EmployeeID);
+                    END LOOP;
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN                    
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                iInsertCounts:=iInsertCounts+1;
+                                sQueryToInsert := sQueryBeginToInsert || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || sQueryEndToInsert;
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+
+        END LOOP;
+
+    ElsIf (iFileType = 15) Then
+        OPEN ConceptsVals3(lPayrollID, sCondition);
+        LOOP
+            sConditionArmada := '';
+            --DBMS_OUTPUT.PUT_LINE(ConceptsVals%ROWCOUNT);
+            FETCH ConceptsVals3 INTO ConceptsValues_rec3;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec3.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec3.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec3.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec3.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec3.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec3.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec3.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec3.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec3.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec3.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec3.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec3.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec3.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec3.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec3.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec3.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec3.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec3.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec3.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec3.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec3.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues3(iCOUNT).ConceptID:=ConceptsValues_rec3.ConceptID;
+                 tTConceptsValues3(iCOUNT).ConceptAmount:=ConceptsValues_rec3.ConceptAmount;
+                 tTConceptsValues3(iCOUNT).PeriodID:=ConceptsValues_rec3.PeriodID;
+                 tTConceptsValues3(iCOUNT).ConceptQttyID:=ConceptsValues_rec3.ConceptQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMin:=ConceptsValues_rec3.ConceptMin;
+                 tTConceptsValues3(iCOUNT).ConceptMinQttyID:=ConceptsValues_rec3.ConceptMinQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMax:=ConceptsValues_rec3.ConceptMax;
+                 tTConceptsValues3(iCOUNT).ConceptMaxQttyID:=ConceptsValues_rec3.ConceptMaxQttyID;
+                 tTConceptsValues3(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals3%NOTFOUND; -- Último registro.
+        END LOOP;
+        
+        FOR i IN tTConceptsValues3.FIRST..tTConceptsValues3.LAST
+        LOOP
+                sQueryBegin := '';
+                tTConceptsValues3(i).sRecordCondition := tTConceptsValues3(i).sRecordCondition || sConditions;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues3(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                END IF;
+
+                If TO_NUMBER(tTConceptsValues3(i).ConceptQttyID) = 3 Then
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, Zones.ZoneTypeID, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Zones.ZoneTypeID=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                Else
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, ZoneTypes.ZoneTypeID2, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, ZoneTypes, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Areas.EconomicZoneID=ZoneTypes.ZoneTypeID) And (ZoneTypes.ZoneTypeID2=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                END IF;
+
+                iCOUNTI := 0;
+                BEGIN
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN row_CV2 FOR sQuery;
+                    LOOP
+                            FETCH c_cursor INTO v_EmployeeID, v_EconomicZoneID, v_ZoneTypeID, v_ConceptAmount, v_IsDeduction;
+                            EXIT WHEN c_cursor%NOTFOUND;
+                            iCOUNTI:=iCOUNTI+1;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues1(i).ConceptID;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=tTConceptsValues1(i).ConceptAmount;
+                            tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(row_Empleado.EmployeeID);
+                    END LOOP;
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN                    
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                iInsertCounts:=iInsertCounts+1;
+                                sQueryToInsert := sQueryBeginToInsert || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || sQueryEndToInsert;
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+
+        END LOOP;
+
+    ElsIf (iFileType = 69) Then
+        OPEN ConceptsVals3(lPayrollID, sCondition);
+        LOOP
+            sConditionArmada := '';
+            --DBMS_OUTPUT.PUT_LINE(ConceptsVals%ROWCOUNT);
+            FETCH ConceptsVals3 INTO ConceptsValues_rec3;
+             IF InStr(',' || sPeriods || ',', ',' || ConceptsValues_rec3.PeriodID || ',') > 0 THEN
+                 IF (TO_NUMBER (ConceptsValues_rec3.CompanyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.CompanyID=' || ConceptsValues_rec3.CompanyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeTypeID=' || ConceptsValues_rec3.EmployeeTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionTypeID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionTypeID=' || ConceptsValues_rec3.PositionTypeID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EmployeeStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.StatusID=' || ConceptsValues_rec3.EmployeeStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JobStatusID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JobID=Jobs.JobID) And (Jobs.StatusID=' || ConceptsValues_rec3.JobStatusID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ClassificationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ClassificationID=' || ConceptsValues_rec3.ClassificationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GroupGradeLevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.GroupGradeLevelID=' || ConceptsValues_rec3.GroupGradeLevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.IntegrationID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.IntegrationID=' || ConceptsValues_rec3.IntegrationID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.JourneyID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.JourneyID=' || ConceptsValues_rec3.JourneyID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.WorkingHours) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.WorkingHours=' || ConceptsValues_rec3.WorkingHours || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AdditionalShift) > 0) THEN
+                    sConditionArmada := sConditionArmada  || '  And ((Employees.StartHour3>0) Or (Employees.EndHour3>0))';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.LevelID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.LevelID=' || ConceptsValues_rec3.LevelID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.EconomicZoneID) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.EconomicZoneID=' || ConceptsValues_rec3.EconomicZoneID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ServiceID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.ServiceID=' || ConceptsValues_rec3.ServiceID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.AntiquityID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.AntiquityID=' || ConceptsValues_rec3.AntiquityID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity2ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity2ID=' || ConceptsValues_rec3.Antiquity2ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity3ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity3ID=' || ConceptsValues_rec3.Antiquity3ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.Antiquity4ID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.Antiquity4ID=' || ConceptsValues_rec3.Antiquity4ID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.ForRisk) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesRisksLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.GenderID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (Employees.GenderID=' || ConceptsValues_rec3.GenderID || ')';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasChildren) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesChildrenLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.HasSyndicate) > 0) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.EmployeeID=EmployeesSyndicatesLKP.EmployeeID)';
+                 END IF;
+                 IF (TO_NUMBER (ConceptsValues_rec3.PositionID) > -1) THEN
+                    sConditionArmada := sConditionArmada  || ' And (EmployeesHistoryList.PositionID=' || ConceptsValues_rec3.PositionID || ')';
+                 END IF;
+                 IF (INSTR(sConditionArmada, '(Employees.')>0) Then
+                    sConditionArmada := sConditionArmada || ' And (EmployeesHistoryList.EmployeeID=Employees.EmployeeID)';
+                 END IF;
+                 iCOUNT:=iCOUNT+1;
+                 tTConceptsValues3(iCOUNT).ConceptID:=ConceptsValues_rec3.ConceptID;
+                 tTConceptsValues3(iCOUNT).ConceptAmount:=ConceptsValues_rec3.ConceptAmount;
+                 tTConceptsValues3(iCOUNT).PeriodID:=ConceptsValues_rec3.PeriodID;
+                 tTConceptsValues3(iCOUNT).ConceptQttyID:=ConceptsValues_rec3.ConceptQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMin:=ConceptsValues_rec3.ConceptMin;
+                 tTConceptsValues3(iCOUNT).ConceptMinQttyID:=ConceptsValues_rec3.ConceptMinQttyID;
+                 tTConceptsValues3(iCOUNT).ConceptMax:=ConceptsValues_rec3.ConceptMax;
+                 tTConceptsValues3(iCOUNT).ConceptMaxQttyID:=ConceptsValues_rec3.ConceptMaxQttyID;
+                 tTConceptsValues3(iCOUNT).sRecordCondition:=sConditionArmada;
+            END IF;
+            EXIT WHEN ConceptsVals3%NOTFOUND; -- Último registro.
+        END LOOP;
+        
+        FOR i IN tTConceptsValues3.FIRST..tTConceptsValues3.LAST
+        LOOP
+                sQueryBegin := '';
+                tTConceptsValues3(i).sRecordCondition := tTConceptsValues3(i).sRecordCondition || sConditions;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, '=Employees.') > 0) Or (InStr(tTConceptsValues3(i).sRecordCondition, '(Employees.') > 0) Then 
+                    sQueryBegin := sQueryBegin || ', Employees';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesChildrenLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesChildrenLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRisksLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRisksLKP';
+                END IF;
+                If (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesSyndicatesLKP') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesSyndicatesLKP';
+                END IF;
+                If (iPayrollType <> 4) And (InStr(tTConceptsValues3(i).sRecordCondition, 'EmployeesRevisions') > 0) Then
+                    sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+                END IF;
+
+                If TO_NUMBER(tTConceptsValues3(i).ConceptQttyID) = 3 Then
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, Zones.ZoneTypeID, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Zones.ZoneTypeID=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                Else
+                        sQuery := 'Select EmployeesHistoryList.EmployeeID, ZoneTypes.ZoneTypeID2, CurrencyValue From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons, Jobs, Areas, Zones, ZoneTypes, CurrenciesHistoryList ' || sQueryBegin || ' Where (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ') And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (EmployeesHistoryList.JobID=Jobs.JobID) And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (Areas.EconomicZoneID=ZoneTypes.ZoneTypeID) And (ZoneTypes.ZoneTypeID2=CurrenciesHistoryList.CurrencyID) And (CurrenciesHistoryList.CurrencyDate=' || lForPayrollID || ') ' || tTConceptsValues3(i).sRecordCondition || ' Order By EmployeesHistoryList.EmployeeID';
+                END IF;
+
+                iCOUNTI := 0;
+                BEGIN
+                    tTCV1EmpToInsert.DELETE;
+                    OPEN row_CV2 FOR sQuery;
+                    LOOP
+                            FETCH c_cursor INTO v_EmployeeID, v_EconomicZoneID, v_ZoneTypeID, v_ConceptAmount, v_IsDeduction;
+                            EXIT WHEN c_cursor%NOTFOUND;
+                            iCOUNTI:=iCOUNTI+1;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptID:=tTConceptsValues1(i).ConceptID;
+                            tTCV1EmpToInsert(iCOUNTI).ConceptAmount:=tTConceptsValues1(i).ConceptAmount;
+                            tTCV1EmpToInsert(iCOUNTI).EmployeeID:=TO_NUMBER(row_Empleado.EmployeeID);
+                    END LOOP;
+                    CLOSE c_cursor;
+
+                    IF (tTCV1EmpToInsert.COUNT > 0) THEN                    
+                        FOR ix IN tTCV1EmpToInsert.FIRST..tTCV1EmpToInsert.LAST
+                        LOOP
+                            BEGIN
+                                iInsertCounts:=iInsertCounts+1;
+                                sQueryToInsert := sQueryBeginToInsert || tTCV1EmpToInsert(ix).EmployeeID || ', ' || tTCV1EmpToInsert(ix).ConceptID || ', 1, ' || tTCV1EmpToInsert(ix).ConceptAmount || sQueryEndToInsert;
+                                EXECUTE IMMEDIATE sQueryToInsert;
+                                commit;
+                            EXCEPTION
+                                WHEN DUP_VAL_ON_INDEX THEN
+                                    NULL;
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        NULL;
+                END;
+
+        END LOOP;
+
+    ElsIf (iFileType = 5) Then
+        iInsertCounts := 12345678;
+    End If;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN DUP_VAL_ON_INDEX THEN
+        NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END CreateAndRunFiles;
+/
+
+
+CREATE OR REPLACE PROCEDURE SIAP.UpdateAntiquities(lPayrollID NUMBER, lForPayrollID NUMBER, iPayrollType NUMBER, sConditions VARCHAR2 := '', iInsertCounts OUT NUMBER, sEmployeesFor44 OUT VARCHAR2) IS
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    row_Antiquities Antiquities%ROWTYPE;
+    --row_CV2 SYS_REFCURSOR;
+    aiDays SPLIT_TBL;
+
+    Type AntiquitiesRecord IS RECORD(
+        AntiquityID NUMBER,
+        StartYears NUMBER,
+        EndYears NUMBER
+    );
+
+    TYPE TAntiquities IS TABLE OF AntiquitiesRecord INDEX BY BINARY_INTEGER;
+    tTAntiquities TAntiquities;
+    iCOUNT NUMBER;
+    iCountQuery NUMBER;
+
+    -- Query1
+    v_EmployeeID EmployeesHistoryList.EmployeeID%TYPE;
+    v_EmployeeDate EmployeesHistoryList.EmployeeDate%TYPE;
+    v_EndDate EmployeesHistoryList.EndDate%TYPE;
+    v_JobID EmployeesHistoryList.JobID%TYPE;
+    v_Active StatusEmployees.Active%TYPE;
+    v_ActiveEmployeeID Reasons.ActiveEmployeeID%TYPE;
+    -- Query2
+    v_AntiquityYears EmployeesAntiquitiesLKP.AntiquityYears%TYPE; 
+    v_AntiquityMonths EmployeesAntiquitiesLKP.AntiquityMonths%TYPE;
+    v_AntiquityDays EmployeesAntiquitiesLKP.AntiquityMonths%TYPE;
+    -- Query3
+    v_OcurredDate EmployeesAbsencesLKP.OcurredDate%TYPE;
+    -- Query4
+    v_Antiquity2ID Employees.Antiquity2ID%TYPE;
+    v_Antiquity3ID Employees.Antiquity3ID%TYPE;
+
+    Type AntiqEmpToUpdate IS RECORD(
+        EmployeeID NUMBER,
+        AntiquityID NUMBER,
+        StartYears NUMBER,
+        EndYears NUMBER
+    );
+
+    Type AntiqEmpToUpdate2 IS RECORD(
+        EmployeeID NUMBER,
+        Days NUMBER
+    );
+
+    Type AntiqEmpToUpdate3 IS RECORD(
+        EmployeeID NUMBER,
+        Days0 NUMBER,
+        Days1 NUMBER
+    );
+
+    Type AntiqEmpToUpdate4 IS RECORD(
+        EmployeeID NUMBER,
+        AntiquityID NUMBER,
+        Days NUMBER
+    );
+
+    TYPE TAntiqEmpToUpdate IS TABLE OF AntiqEmpToUpdate INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate TAntiqEmpToUpdate;
+
+    TYPE TAntiqEmpToUpdate2 IS TABLE OF AntiqEmpToUpdate2 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate2 TAntiqEmpToUpdate2;
+
+    TYPE TAntiqEmpToUpdate3 IS TABLE OF AntiqEmpToUpdate3 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate3 TAntiqEmpToUpdate3;
+
+    TYPE TAntiqEmpToUpdate4 IS TABLE OF AntiqEmpToUpdate4 INDEX BY BINARY_INTEGER;
+    tTAntiqEmpToUpdate4 TAntiqEmpToUpdate4;
+
+    lPayID NUMBER;
+    lCurrentID NUMBER;
+    lEmployeeDate NUMBER;
+    lEndDate NUMBER;
+    lJobID NUMBER;
+    iActive NUMBER;
+    iActiveEmployeeID NUMBER;
+    iDay NUMBER;
+    iDays NUMBER;
+
+    lAntiquityYears NUMBER;
+    lAntiquityMonths NUMBER;
+    lAntiquityDays NUMBER;
+
+    lOcurredDate NUMBER;
+
+    lAntiquity2ID NUMBER;
+    lAntiquity3ID NUMBER;
+
+    adDSM SPLIT_TBL;
+    sCondition VARCHAR2(1000);
+    sQuery VARCHAR2(2000);
+    sQueryBegin VARCHAR2(1000);
+    sQueryBeginToInsert VARCHAR2(2000);
+    sQueryEndToInsert VARCHAR2(2000);
+    sQueryToInsert VARCHAR2(3000);
+    lTempEndDate NUMBER;
+
+    BEGIN
+
+        iInsertCounts:=0;
+        lPayID := lForPayrollID;
+        If (iPayrollType <> 4) And (InStr(sConditions, 'EmployeesRevisions') > 0) Then
+            sCondition := ' And (EmployeesHistoryList.EmployeeID=EmployeesRevisions.EmployeeID) And (EmployeesRevisions.PayrollID=' || lPayrollID || ') And (EmployeesRevisions.StartPayrollID=' || lPayrollID || ')' || sConditions;
+            sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+        End If;
+
+        lTempEndDate := TO_NUMBER(SUBSTR(lForPayrollID, 0, 4));
+        If (SUBSTR(lForPayrollID, 5, 2) = '01') Then
+                lTempEndDate := TO_NUMBER(TO_NUMBER(SUBSTR(lForPayrollID, 0, 4) - 1) || '1231');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '02') Or (SUBSTR(lForPayrollID, 5, 2) = '04') Or (SUBSTR(lForPayrollID, 5, 2) = '06') Or (SUBSTR(lForPayrollID, 5, 2) = '08') Or (SUBSTR(lForPayrollID, 5, 2) = '09') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0' || TO_NUMBER (SUBSTR(lForPayrollID, 5, 2)) || '31');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '11') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '1031');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '03') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0228');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '05') Or (SUBSTR(lForPayrollID, 5, 2) = '07') Or (SUBSTR(lForPayrollID, 5, 2) = '10') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '0' || TO_NUMBER (SUBSTR(lForPayrollID, 5, 2)) || '30');
+        ElsIf (SUBSTR(lForPayrollID, 5, 2) = '12') Then
+                lTempEndDate := TO_NUMBER(lTempEndDate || '1130');
+        End If;
+
+        iCOUNT:=0;
+        sQuery := 'Select * From Antiquities Where (AntiquityID>-1)';
+        OPEN c_cursor FOR sQuery;
+        LOOP
+                FETCH c_cursor INTO row_Antiquities;
+                EXIT WHEN c_cursor%NOTFOUND;
+                iCOUNT:=iCOUNT+1;
+                tTAntiquities(iCOUNT).AntiquityID:=TO_NUMBER(row_Antiquities.AntiquityID);
+                tTAntiquities(iCOUNT).StartYears:=TRUNC(TO_NUMBER(row_Antiquities.StartYears));
+                tTAntiquities(iCOUNT).EndYears:=TRUNC(TO_NUMBER(row_Antiquities.EndYears));
+        END LOOP;
+        CLOSE c_cursor;
+
+        --sCondition := ' AND (EmployeesHistoryList.EmployeeID < 1000)';
+        SELECT Split('0,0', ',') INTO aiDays FROM DUAL;
+
+        BEGIN
+        
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                -- 1
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesHistoryList.EmployeeID, EmployeesHistoryList.EmployeeDate, EmployeesHistoryList.EndDate, EmployeesHistoryList.JobID, StatusEmployees.Active, Reasons.ActiveEmployeeID' ||
+                               ' From EmployeesHistoryList, EmployeesChangesLKP, StatusEmployees, Reasons ' || sQueryBegin || 
+                               ' Where (EmployeesHistoryList.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' ||
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID)' || 
+                               ' And (EmployeesHistoryList.ReasonID=Reasons.ReasonID) And (StatusEmployees.Active=1) And (ActiveEmployeeID=1)' ||
+                               ' And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate) And (EmployeesHistoryList.EmployeeDate<=' || lForPayrollID || ') ' || sCondition ||
+                               ' Order By EmployeesHistoryList.EmployeeID, EmployeesHistoryList.EmployeeDate Desc';
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_EmployeeDate, v_EndDate, v_JobID, v_Active, v_ActiveEmployeeID;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQueryCV1;
+                End If;
+                iDay := 0;
+                sEmployeesFor44 := '';
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lEmployeeDate := v_EmployeeDate;
+                lEndDate := v_EndDate;
+                lJobID := v_JobID;
+                iActive := v_Active;
+                iActiveEmployeeID := v_ActiveEmployeeID;
+                WHILE c_cursor%FOUND
+                LOOP
+
+                    iDay := iDay + 1;
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                        LOOP
+                            If ((aiDays(2) / 365) >= tTAntiquities(i).StartYears) And ((aiDays(2) / 365) < tTAntiquities(i).EndYears) Then
+                                If tTAntiquities(i).AntiquityID >= 8 Then
+                                    If ((aiDays(2) >= 9125) And (aiDays(2) <= 9139)) Or ((aiDays(2) >= 10950) And (aiDays(2) <= 10964)) Then
+                                        sEmployeesFor44 := sEmployeesFor44 || lCurrentID || ',';
+                                    End If;
+                                End If;
+                                --lErrorNumber := AppendTextToFile(sFilePath & "_PayrollAntiquity_" (iCounter / ROWS_PER_FILE) & ".txt", lCurrentID & "," (iIndex)(0) & "," (1) & "," (0), sErrorDescription)
+                                iCOUNT:=iCOUNT+1;
+                                tTAntiqEmpToUpdate(iCOUNT).EmployeeID := lCurrentID;
+                                tTAntiqEmpToUpdate(iCOUNT).AntiquityID :=tTAntiquities(i).AntiquityID;
+                                tTAntiqEmpToUpdate(iCOUNT).StartYears :=aiDays(1);
+                                tTAntiqEmpToUpdate(iCOUNT).EndYears :=aiDays(2);
+                                Exit;
+                            End If;
+                        END LOOP;
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lEmployeeDate := v_EmployeeDate;
+                        lEndDate := v_EndDate;
+                        lJobID := v_JobID;
+                        iActive := v_Active;
+                        iActiveEmployeeID := v_ActiveEmployeeID;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lTempEndDate Then
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(lTempEndDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(v_EndDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lForPayrollID Then
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(lForPayrollID, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EmployeeDate, 'YYYYMMDD') - TO_DATE(v_EndDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    FETCH c_cursor INTO v_EmployeeID, v_EmployeeDate, v_EndDate, v_JobID, v_Active, v_ActiveEmployeeID;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+
+                FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                LOOP
+                    If ((aiDays(2) / 365) >= tTAntiquities(i).StartYears) And ((aiDays(2) / 365) < tTAntiquities(i).EndYears) Then
+                        If tTAntiquities(i).AntiquityID >= 8 Then
+                            If ((aiDays(2) >= 9125) And (aiDays(2) <= 9139)) Or ((aiDays(2) >= 10950) And (aiDays(2) <= 10964)) Then 
+                                sEmployeesFor44 := sEmployeesFor44 || lCurrentID || ',';
+                            End If;
+                        End If;
+                        --lErrorNumber := AppendTextToFile(sFilePath & "_PayrollAntiquity_" (iCounter / ROWS_PER_FILE) & ".txt", lCurrentID & "," (iIndex)(0) & "," (1) & "," (0), sErrorDescription)
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate(iCOUNT).AntiquityID :=tTAntiquities(i).AntiquityID;
+                        tTAntiqEmpToUpdate(iCOUNT).StartYears :=aiDays(1);
+                        tTAntiqEmpToUpdate(iCOUNT).EndYears :=aiDays(2);
+                        Exit;
+                    End If;
+                END LOOP;
+
+                <<NoRowsQueryCV1>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate.FIRST..tTAntiqEmpToUpdate.LAST
+                    LOOP
+                        BEGIN
+                            sQueryToInsert := 'Update Employees Set AntiquityID=' || tTAntiqEmpToUpdate(ix).AntiquityID || ', Antiquity2ID=-' || tTAntiqEmpToUpdate(ix).EndYears || ', Antiquity3ID=-' || tTAntiqEmpToUpdate(ix).StartYears || ' Where (EmployeeID=' || tTAntiqEmpToUpdate(ix).EmployeeID || ')';
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+
+                -- 2
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesAntiquitiesLKP.EmployeeID, AntiquityYears, AntiquityMonths, AntiquityDays' ||
+                               ' From EmployeesAntiquitiesLKP, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin ||
+                               ' Where (EmployeesAntiquitiesLKP.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID)' || 
+                               ' And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' || 
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                               ' And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' ||
+                               ' And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) ' || sCondition ||
+                               ' Order By EmployeesAntiquitiesLKP.EmployeeID';
+
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_AntiquityYears, v_AntiquityMonths, v_AntiquityDays;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery2;
+                End If;
+                --sEmployeesFor44 := '';
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lAntiquityYears := v_AntiquityYears;
+                lAntiquityMonths := v_AntiquityMonths;
+                lAntiquityDays := v_AntiquityDays;
+                WHILE c_cursor%FOUND
+                LOOP
+
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate2(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate2(iCOUNT).Days :=aiDays(1);
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lAntiquityYears := v_AntiquityYears;
+                        lAntiquityMonths := v_AntiquityMonths;
+                        lAntiquityDays := v_AntiquityDays;
+                    End If;
+
+                    aiDays(1) := aiDays(1) + (TO_NUMBER(v_AntiquityYears) * 365) + (TO_NUMBER(v_AntiquityMonths) * 30.4) + TO_NUMBER(v_AntiquityDays);
+
+                    FETCH c_cursor INTO v_EmployeeID, v_AntiquityYears, v_AntiquityMonths, v_AntiquityDays;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+                iCOUNT:=iCOUNT+1;
+                tTAntiqEmpToUpdate2(iCOUNT).EmployeeID := lCurrentID;
+                tTAntiqEmpToUpdate2(iCOUNT).Days :=aiDays(1);
+
+                <<NoRowsQuery2>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate2.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate2.FIRST..tTAntiqEmpToUpdate2.LAST
+                    LOOP
+                        BEGIN
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate2(ix).Days || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate2(ix).Days || ' Where (EmployeeID=' || tTAntiqEmpToUpdate2(ix).EmployeeID || ')';
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                iCountQuery := 0;
+
+                -- 3
+                iCOUNT:=0;
+                sQuery := 'Select EmployeesAbsencesLKP.EmployeeID, EmployeesAbsencesLKP.OcurredDate, EmployeesAbsencesLKP.EndDate' ||
+                               ' From EmployeesAbsencesLKP, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons ' || sQueryBegin || 
+                               ' Where (EmployeesAbsencesLKP.EmployeeID=EmployeesChangesLKP.EmployeeID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID)' || 
+                               ' And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollID || ')' || 
+                               ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                               ' And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' || 
+                               ' And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2)' || 
+                               ' And (EmployeesAbsencesLKP.AbsenceID In (10,95)) And (EmployeesAbsencesLKP.OcurredDate<=' || lForPayrollID || ') ' || sCondition || 
+                               ' Order By EmployeesAbsencesLKP.EmployeeID';
+                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(-1);
+                --commit;
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_OcurredDate, v_EndDate;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery3;
+                End If;
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lOcurredDate := v_OcurredDate;
+                lEndDate := v_EndDate;
+                WHILE c_cursor%FOUND
+                LOOP
+                    If lCurrentID <> TO_NUMBER(v_EmployeeID) Then
+                        iCOUNT:=iCOUNT+1;
+                        tTAntiqEmpToUpdate3(iCOUNT).EmployeeID := lCurrentID;
+                        tTAntiqEmpToUpdate3(iCOUNT).Days0 :=aiDays(1);
+                        tTAntiqEmpToUpdate3(iCOUNT).Days1 :=aiDays(2);
+                        FOR i IN aiDays.FIRST..aiDays.LAST
+                        LOOP
+                            aiDays(i) := 0;
+                        END LOOP;
+                        lCurrentID := TO_NUMBER(v_EmployeeID);
+                        lOcurredDate := v_OcurredDate;
+                        lEndDate := v_EndDate;
+                    End If;
+
+                    --aiDays(1) := aiDays(1) + (TO_NUMBER(v_AntiquityYears) * 365) + (TO_NUMBER(v_AntiquityMonths) * 30.4) + TO_NUMBER(v_AntiquityDays);
+                    If TO_NUMBER(v_EndDate) > lTempEndDate Then
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(lTempEndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(1) := aiDays(1) + Abs(TO_DATE(v_EndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    End If;
+                    If TO_NUMBER(v_EndDate) > lForPayrollID Then
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(lForPayrollID, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    Else
+                        aiDays(2) := aiDays(2) + Abs(TO_DATE(v_EndDate, 'YYYYMMDD') - TO_DATE(v_OcurredDate, 'YYYYMMDD')) + 1;
+                    End If;
+
+                    FETCH c_cursor INTO v_EmployeeID, v_OcurredDate, v_EndDate;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+                iCOUNT:=iCOUNT+1;
+                tTAntiqEmpToUpdate3(iCOUNT).EmployeeID := lCurrentID;
+                tTAntiqEmpToUpdate3(iCOUNT).Days0 :=aiDays(1);
+                tTAntiqEmpToUpdate3(iCOUNT).Days1 :=aiDays(2);
+
+                <<NoRowsQuery3>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate3.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate3.FIRST..tTAntiqEmpToUpdate3.LAST
+                    LOOP
+                        BEGIN
+                            iCountQuery := iCountQuery + 1;
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate3(ix).Days1 || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate3(ix).Days0 || ' Where (EmployeeID=' || tTAntiqEmpToUpdate3(ix).EmployeeID || ')';
+                            --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQueryToInsert, TO_CHAR(iCountQuery);
+                            --commit;
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+        BEGIN
+
+            If True Then
+                FOR i IN aiDays.FIRST..aiDays.LAST
+                LOOP
+                    aiDays(i) := 0;
+                END LOOP;
+                iCountQuery := 0;
+
+                -- 4
+                iCOUNT:=0;
+                iCountQuery:=0;
+                sQuery := 'Select Employees.EmployeeID, Antiquity2ID, Antiquity3ID' ||
+                        ' From Employees, EmployeesHistoryList, StatusEmployees, Reasons' || sQueryBegin ||
+                        ' Where (Employees.EmployeeID = EmployeesHistoryList.EmployeeID) And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' || 
+                        ' And (EmployeesHistoryList.EmployeeDate<=' || lForPayrollID || ')' ||
+                        ' And (EmployeesHistoryList.EndDate>=' || lForPayrollID || ') And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' ||
+                        ' And (EmployeesHistoryList.EmployeeTypeID>-1) And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2) And (Antiquity2ID<0)' || sCondition ||
+                        ' Order By Employees.EmployeeID';
+                --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(-1);
+                --commit;
+                OPEN c_cursor FOR sQuery;
+                FETCH c_cursor INTO v_EmployeeID, v_Antiquity2ID, v_Antiquity3ID;
+                If  c_cursor%NOTFOUND Then
+                    GoTo NoRowsQuery4;
+                End If;
+                lCurrentID := TO_NUMBER(v_EmployeeID);
+                lAntiquity2ID := v_Antiquity2ID;
+                lAntiquity3ID := v_Antiquity3ID;
+                WHILE c_cursor%FOUND
+                LOOP
+                    --iCountQuery:=iCountQuery+1;
+                    --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using TO_CHAR(iCountQuery), TO_CHAR(iCountQuery);
+                    --commit;
+                    FOR i IN tTAntiquities.FIRST..tTAntiquities.LAST
+                    LOOP
+
+                        If ((Abs(TO_NUMBER(v_Antiquity3ID)) / 365) >= tTAntiquities(i).StartYears) And ((Abs(TO_NUMBER(v_Antiquity3ID)) / 365) < tTAntiquities(i).EndYears) Then
+                            iDays := tTAntiquities(i).AntiquityID;
+                        End If;
+                        If ((Abs(TO_NUMBER(v_Antiquity2ID)) / 365) >= tTAntiquities(i).StartYears) And ((Abs(TO_NUMBER(v_Antiquity2ID)) / 365) < tTAntiquities(i).EndYears) Then
+                            iCOUNT:=iCOUNT+1;
+                            tTAntiqEmpToUpdate4(iCOUNT).EmployeeID := v_EmployeeID;
+                            tTAntiqEmpToUpdate4(iCOUNT).AntiquityID := tTAntiquities(i).AntiquityID;
+                            tTAntiqEmpToUpdate4(iCOUNT).Days := iDays;
+                            Exit;
+                        End If;
+                    End LOOP;
+                    FETCH c_cursor INTO v_EmployeeID, v_Antiquity2ID, v_Antiquity3ID;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                END LOOP;
+
+                <<NoRowsQuery4>>
+                CLOSE c_cursor;
+
+                IF (tTAntiqEmpToUpdate4.COUNT > 0) THEN
+                    FOR ix IN tTAntiqEmpToUpdate4.FIRST..tTAntiqEmpToUpdate4.LAST
+                    LOOP
+                        BEGIN
+                            iCountQuery := iCountQuery + 1;
+                            sQueryToInsert := 'Update Employees Set Antiquity2ID=Antiquity2ID-' || tTAntiqEmpToUpdate4(ix).AntiquityID || ', Antiquity3ID=Antiquity3ID-' || tTAntiqEmpToUpdate4(ix).Days || ' Where (EmployeeID=' || tTAntiqEmpToUpdate4(ix).EmployeeID || ')';
+                            --EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQueryToInsert, TO_CHAR(iCountQuery);
+                            --commit;
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCounts:=iInsertCounts+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+            END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+
+
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            NULL;
+    END UpdateAntiquities;
+/
+
+
+CREATE OR REPLACE PROCEDURE SIAP.prc_actualiza_clc(xPAYROLLCLC  in varchar2, XPAYROLLCODE in varchar2, xPAYROLLID in NUMBER) 
+
+ IS 
+    xEMPLOYEEID         NUMBER;
+      xEMPLOYEEDATE       NUMBER;
+      xEMPLOYEENUMBER     VARCHAR2(100);
+      xCOMPANYID          NUMBER;
+      xCOMPANYNAME   VARCHAR2(255);
+      xJOBID              NUMBER;
+      xSERVICEID          NUMBER;
+      xZONEID             NUMBER;
+      xEMPLOYEETYPEID     NUMBER;
+      xPOSITIONTYPEID     NUMBER;
+      xCLASSIFICATIONID   NUMBER;
+      xGROUPGRADELEVELID  NUMBER;
+      xINTEGRATIONID      NUMBER;
+      xJOURNEYID          NUMBER;
+      xSHIFTID            NUMBER;
+      xWORKINGHOURS       NUMBER;
+      xAREAID             NUMBER;
+      xPOSITIONID         NUMBER;
+      xLEVELID            NUMBER;
+      xSTATUSID           NUMBER;
+      xPAYMENTCENTERID    NUMBER;
+      xRISKLEVEL          NUMBER;
+      xACTIVE             NUMBER;
+      xREASONID           NUMBER;
+      xMODIFYDATE         NUMBER;
+      xPAYROLLDATE        NUMBER;
+      xUSERID             NUMBER;
+      xACCOUNTNUMBER      VARCHAR2(100);
+      xBANKID             NUMBER;
+      xBANKNAME       VARCHAR2(255);
+      xPERCEPCIONES NUMBER(18,2);
+      xDEDUCCIONES   NUMBER(18,2);
+      xLIQUIDO        NUMBER(18,2); 
+      xRECORDID          NUMBER;
+
+ 
+      CURSOR c1 IS    SELECT  EHL.EMPLOYEEID, EMPLOYEEDATE, EMPLOYEENUMBER, COMPANYID, JOBID, SERVICEID, ZONEID, EMPLOYEETYPEID, POSITIONTYPEID,  CLASSIFICATIONID, 
+                   GROUPGRADELEVELID,   INTEGRATIONID, JOURNEYID, SHIFTID,  WORKINGHOURS, AREAID,  POSITIONID,  LEVELID,  STATUSID, PAYMENTCENTERID, RISKLEVEL, ACTIVE, REASONID, MODIFYDATE, PAYROLLDATE, USERID, ACCOUNTNUMBER, BANKID
+                   FROM EMPLOYEESHISTORYLISTFORPAYROLL EHL
+                   Where EmployeeID IN(Select EmployeeID from payrollsCLCS where payrollID = xPAYROLLID and PAYROLLCLC =  ''||xPAYROLLCLC||'' AND PAYROLLCODE = ''||XPAYROLLCODE||''  )
+                   and payrollID =xPAYROLLID ;
+   
+        v_reg c1%rowtype;
+       
+begin
+      
+  open c1;
+   loop
+   
+   fetch c1 into   xEMPLOYEEID,  xEMPLOYEEDATE, xEMPLOYEENUMBER, xCOMPANYID, xJOBID, xSERVICEID, xZONEID, xEMPLOYEETYPEID, xPOSITIONTYPEID,  xCLASSIFICATIONID, 
+   xGROUPGRADELEVELID,   xINTEGRATIONID, xJOURNEYID, xSHIFTID,     xWORKINGHOURS, xAREAID,  xPOSITIONID,  xLEVELID,  xSTATUSID, xPAYMENTCENTERID, xRISKLEVEL, xACTIVE, xREASONID, 
+   xMODIFYDATE, xPAYROLLDATE, xUSERID, xACCOUNTNUMBER, xBANKID;
+            EXIT WHEN c1%NOTFOUND;
+            
+             BEGIN     
+                    SELECT BANKNAME INTO  xBANKNAME FROM BANKS WHERE BANKID = xBANKID;
+            EXCEPTION
+                WHEN no_data_found THEN
+                    xBANKNAME := ' '; 
+            END;                       
+              
+             IF xBANKNAME is NULL then
+                xBANKNAME := ' ';
+             END IF;
+            
+              SELECT COMPANYNAME INTO xCOMPANYNAME
+              FROM COMPANIES
+              WHERE COMPANYID = xCOMPANYID;
+                            
+            BEGIN
+                
+              SELECT CONCEPTAMOUNT  INTO xDEDUCCIONES
+              FROM suma_cptos_payroll
+              WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=xPAYROLLID AND CONCEPTID=-2;
+  
+            EXCEPTION
+            
+            WHEN no_data_found THEN
+                    xDEDUCCIONES := 0;
+            WHEN OTHERS THEN 
+                    xDEDUCCIONES := 0;
+            END;
+                   
+             IF xDEDUCCIONES is NULL then
+                xDEDUCCIONES := 0;
+              END IF;
+              
+              BEGIN
+                
+              SELECT CONCEPTAMOUNT  INTO xPERCEPCIONES
+              FROM suma_cptos_payroll
+              WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=xPAYROLLID AND CONCEPTID=-1;
+            
+            EXCEPTION
+            
+            WHEN no_data_found THEN
+                    xPERCEPCIONES := 0; 
+            WHEN OTHERS THEN 
+                     xPERCEPCIONES := 0; 
+            END;
+              
+            IF xPERCEPCIONES is NULL then
+                xPERCEPCIONES := 0;
+            END IF;
+                        
+             BEGIN
+                
+              SELECT CONCEPTAMOUNT  INTO xLIQUIDO
+              FROM suma_cptos_payroll
+              WHERE EMPLOYEEID = xEMPLOYEEID AND RECORDDATE=xPAYROLLID AND CONCEPTID=0;
+            
+            EXCEPTION
+            
+            WHEN no_data_found THEN
+                    xLIQUIDO := 0; 
+            WHEN OTHERS THEN 
+                    xLIQUIDO := 0; 
+            END;
+            
+             IF xLIQUIDO is NULL then
+                xLIQUIDO := 0;
+              END IF;
+         
+                
+                BEGIN 
+                    INSERT INTO rpt_resumen_mensual (EMPLOYEEID, PAYROLLID,  EMPLOYEEDATE, EMPLOYEENUMBER, COMPANYID, COMPANYNAME, JOBID, SERVICEID, ZONEID, EMPLOYEETYPEID, POSITIONTYPEID,  
+                     CLASSIFICATIONID, GROUPGRADELEVELID,   INTEGRATIONID, JOURNEYID, SHIFTID,  WORKINGHOURS, AREAID,  POSITIONID,  LEVELID,  STATUSID, PAYMENTCENTERID, RISKLEVEL, ACTIVE, 
+                     REASONID, MODIFYDATE, PAYROLLDATE, USERID, ACCOUNTNUMBER, BANKID, BANKNAME, PAYROLLCODE, PAYROLLCLC, PERCEPCIONES, DEDUCCIONES, LIQUIDO)
+                     VALUES                                       ( xEMPLOYEEID, xPAYROLLID,  xEMPLOYEEDATE, xEMPLOYEENUMBER, xCOMPANYID, xCOMPANYNAME, xJOBID, xSERVICEID, xZONEID, xEMPLOYEETYPEID, xPOSITIONTYPEID,  
+                     xCLASSIFICATIONID, xGROUPGRADELEVELID, xINTEGRATIONID, xJOURNEYID, xSHIFTID,  xWORKINGHOURS, xAREAID, xPOSITIONID,  xLEVELID,  xSTATUSID, xPAYMENTCENTERID, xRISKLEVEL, xACTIVE, 
+                     xREASONID, xMODIFYDATE, xPAYROLLDATE, xUSERID, xACCOUNTNUMBER, xBANKID, xBANKNAME, xPAYROLLCODE, xPAYROLLCLC, xPERCEPCIONES, xDEDUCCIONES, xLIQUIDO);
+              EXCEPTION
+              
+                    WHEN DUP_VAL_ON_INDEX THEN
+                            NULL;
+                        UPDATE rpt_resumen_mensual SET PAYROLLCODE = ''||XPAYROLLCODE||'', PAYROLLCLC = ''||XPAYROLLCLC||''                      
+                         WHERE (EMPLOYEEID=XEMPLOYEEID) AND (PAYROLLID = XPAYROLLID);
+              
+                END;
+                commit;           
+        end loop;
+   close c1;
+END;
+/

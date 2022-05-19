@@ -1,0 +1,306 @@
+CREATE OR REPLACE PROCEDURE SIAP.CreateAndRunConcepts(lPayrollIDC NUMBER, lForPayrollIDC NUMBER, iPayrollTypeC NUMBER, sConditionsC VARCHAR2 := '', iInsertCountsC OUT NUMBER) IS
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    c_cursors CUR_TYP;
+    --row_Antiquities Antiquities%ROWTYPE;
+    --row_CV2 SYS_REFCURSOR;
+    aiDays SPLIT_TBL;
+    adDSM SPLIT_TBL;
+    iCOUNT NUMBER;
+    iCOUNTJ NUMBER;
+    iCountQuery NUMBER;
+    sPeriods VARCHAR2(100);
+    sTable VARCHAR2(100);
+    iCountQuery NUMBER;
+    dAmount FLOAT;
+    dTaxAmount FLOAT;
+    bMinMaxApplied BOOLEAN;
+
+    Type EmpConcepts IS RECORD(
+        EmployeeID NUMBER,
+        ConceptID NUMBER,
+        ConceptAmount FLOAT,
+        AppliesToID VARCHAR2(100),
+        ConceptMin VARCHAR2(100),
+        ConceptMinQttyID VARCHAR2(100),
+        ConceptMax VARCHAR2(100),
+        ConceptMaxQttyID VARCHAR2(100),
+        EconomicZoneID NUMBER,
+        ZoneTypeID NUMBER
+    );
+
+    TYPE TEmpConcepts IS TABLE OF EmpConcepts INDEX BY BINARY_INTEGER;
+    tTEmpConcepts TEmpConcepts;
+
+    Type EmpConceptsToInsert IS RECORD(
+        EmployeeID NUMBER,
+        ConceptID NUMBER,
+        ConceptAmount FLOAT
+    );
+
+    TYPE TEmpConceptsToInsert IS TABLE OF EmpConceptsToInsert INDEX BY BINARY_INTEGER;
+    tTEmpConceptsToInsert TEmpConceptsToInsert;
+
+    -- Query1
+    v_EmployeeID EmployeesConceptsLKP.EmployeeID%TYPE;
+    v_ConceptID Concepts.ConceptID%TYPE;
+    v_ConceptAmount EmployeesConceptsLKP.ConceptAmount%TYPE;
+    v_AppliesToID EmployeesConceptsLKP.AppliesToID%TYPE;
+    v_ConceptMin EmployeesConceptsLKP.ConceptMin%TYPE;
+    v_ConceptMinQttyID EmployeesConceptsLKP.ConceptMinQttyID%TYPE;
+    v_ConceptMax EmployeesConceptsLKP.ConceptMax%TYPE;
+    v_ConceptMaxQttyID EmployeesConceptsLKP.ConceptMaxQttyID%TYPE;
+    v_EconomicZoneID Areas.EconomicZoneID%TYPE;
+    v_ZoneTypeID Zones.ZoneTypeID%TYPE;
+
+    v_TotalAmount ConceptsValues.ConceptAmount%TYPE;
+    v_IsDeduction ConceptsValues.ConceptAmount%TYPE;
+
+
+    lPayID NUMBER;
+    lCurrentID NUMBER;
+    lEmployeeDate NUMBER;
+    lEndDate NUMBER;
+    lJobID NUMBER;
+    iActive NUMBER;
+    iActiveEmployeeID NUMBER;
+    iDay NUMBER;
+    iDays NUMBER;
+
+    lAntiquityYears NUMBER;
+    lAntiquityMonths NUMBER;
+    lAntiquityDays NUMBER;
+
+    lOcurredDate NUMBER;
+
+    lAntiquity2ID NUMBER;
+    lAntiquity3ID NUMBER;
+
+    sCondition VARCHAR2(1000);
+    --sConditionArmada VARCHAR2(1000);
+    sQuery VARCHAR2(2000);
+    sQueryBegin VARCHAR2(1000);
+    sQueryBeginToInsert VARCHAR2(2000);
+    sQueryEndToInsert VARCHAR2(2000);
+    sQueryToInsert VARCHAR2(3000);
+    
+    sEmployeesFor44 VARCHAR2(3000);
+    lTempEndDate NUMBER;
+    sPer VARCHAR2(50);
+
+    BEGIN
+
+        iInsertCountsC:=0;
+        lPayID := lForPayrollIDC;
+        If (iPayrollTypeC <> 4) And (InStr(sConditionsC, 'EmployeesRevisions') > 0) Then
+            sCondition := ' And (EmployeesHistoryList.EmployeeID=EmployeesRevisions.EmployeeID) And (EmployeesRevisions.PayrollID=' || lPayrollIDC || ') And (EmployeesRevisions.StartPayrollID=' || lPayrollIDC || ')' || sConditionsC;
+            sQueryBegin := sQueryBegin || ', EmployeesRevisions';
+        End If;
+
+        sPeriods := '';
+        sPeriods := GetPeriodsForPayroll(lPayrollIDC, lForPayrollIDC, -1);
+        sPer := SUBSTR(sPeriods, LENGTH(sPeriods), 1);
+        sPer := SUBSTR(sPeriods, 1, LENGTH(sPeriods) -1);
+        If SUBSTR(sPeriods, LENGTH(sPeriods), 1) = ',' Then
+            sPeriods := SUBSTR(sPeriods, 1, LENGTH(sPeriods) -1);
+        End If;
+        adDSM := GetCurrencyValue(lForPayrollIDC);
+        sTable := 'Payroll_' || TO_CHAR(lPayrollIDC);
+        IF (iPayrollTypeC=3) THEN
+            sTable := 'Payroll_' || TO_CHAR(lForPayrollIDC);
+        END IF;
+
+        BEGIN
+            -- 1
+            iCOUNT:=0;
+            sQuery := 'Select EmployeesConceptsLKP.EmployeeID, Concepts.ConceptID, ConceptAmount, AppliesToID, ConceptMin, ConceptMinQttyID, ConceptMax, ConceptMaxQttyID, Areas.EconomicZoneID, Zones.ZoneTypeID' || 
+                           ' From EmployeesConceptsLKP, Concepts, EmployeesChangesLKP, EmployeesHistoryList, StatusEmployees, Reasons, Jobs, Areas, Zones ' || sQueryBegin || 
+                           ' Where (EmployeesConceptsLKP.ConceptID=Concepts.ConceptID) And (EmployeesChangesLKP.EmployeeID=EmployeesHistoryList.EmployeeID)' || 
+                           ' And (EmployeesChangesLKP.EmployeeDate=EmployeesHistoryList.EmployeeDate) And (EmployeesChangesLKP.PayrollID=' || lPayrollIDC || ')' ||  
+                           ' And (EmployeesChangesLKP.PayrollDate=' || lPayID || ') And (EmployeesHistoryList.EmployeeDate<=EmployeesHistoryList.EndDate)' ||  
+                           ' And (EmployeesHistoryList.StatusID=StatusEmployees.StatusID) And (EmployeesHistoryList.ReasonID=Reasons.ReasonID)' || 
+                           ' And (EmployeesHistoryList.Active=1) And (StatusEmployees.Active=1) And (Reasons.ActiveEmployeeID<>2)' || 
+                           ' And (EmployeesConceptsLKP.EmployeeID=EmployeesHistoryList.EmployeeID) And (EmployeesHistoryList.JobID=Jobs.JobID)' ||  
+                           ' And (EmployeesHistoryList.AreaID=Areas.AreaID) And (Areas.ZoneID=Zones.ZoneID) And (EmployeesConceptsLKP.StartDate<=' || lForPayrollIDC || ')' || 
+                           ' And (EmployeesConceptsLKP.EndDate>=' || lForPayrollIDC || ') And (Concepts.StartDate<=' || lForPayrollIDC || ')' || 
+                           ' And (Concepts.EndDate>=' || lForPayrollIDC || ')' || 
+                           Replace(sCondition, '(Positions.', '(EmployeesHistoryList.') ||
+                           ' And (ConceptQttyID=2) And (AppliesToID Is Not Null) And (Concepts.ConceptID Not In (70))' ||  
+                           ' And (Concepts.PeriodID In (' || sPeriods || ')) And (EmployeesConceptsLKP.Active=1)' ||
+                           --' AND (EmployeesHistoryList.EmployeeID<10000)' || 
+                           ' Order By EmployeesConceptsLKP.EmployeeID, Concepts.OrderInList, Concepts.ConceptID';
+
+           -- EXECUTE IMMEDIATE 'Insert Into Queries (QueryDescription, QueryID) Values (:s, :s)' using sQuery, TO_CHAR(-1);
+            --commit;
+
+            OPEN c_cursor FOR sQuery;
+            LOOP
+                FETCH c_cursor INTO v_EmployeeID, v_ConceptID, v_ConceptAmount, v_AppliesToID, v_ConceptMin, v_ConceptMinQttyID, v_ConceptMax, v_ConceptMaxQttyID, v_EconomicZoneID, v_ZoneTypeID;
+                EXIT WHEN c_cursor%NOTFOUND;
+                iCOUNT := iCOUNT+1;
+                tTEmpConcepts(iCOUNT).EmployeeID := v_EmployeeID;
+                tTEmpConcepts(iCOUNT).ConceptID := v_ConceptID;
+                tTEmpConcepts(iCOUNT).ConceptAmount := v_ConceptAmount;
+                tTEmpConcepts(iCOUNT).AppliesToID := v_AppliesToID;
+                tTEmpConcepts(iCOUNT).ConceptMin := v_ConceptMin;
+                tTEmpConcepts(iCOUNT).ConceptMinQttyID := v_ConceptMinQttyID;
+                tTEmpConcepts(iCOUNT).ConceptMax := v_ConceptMax;
+                tTEmpConcepts(iCOUNT).ConceptMaxQttyID := v_ConceptMaxQttyID;
+                tTEmpConcepts(iCOUNT).EconomicZoneID := v_EconomicZoneID;
+                tTEmpConcepts(iCOUNT).ZoneTypeID := v_ZoneTypeID;
+            END LOOP;
+            CLOSE c_cursor;
+
+            iCOUNTJ := 0;
+            IF (tTEmpConcepts.COUNT > 0) THEN
+                FOR i IN tTEmpConcepts.FIRST..tTEmpConcepts.LAST
+                LOOP
+                    sQuery := 'Select Sum(ConceptAmount) As TotalAmount, IsDeduction From ' || sTable || ', Concepts Where (' || sTable || '.ConceptID=Concepts.ConceptID) And (RecordDate=' || lForPayrollIDC || ') And (EmployeeID=' || tTEmpConcepts(i).EmployeeID || ') And (Concepts.ConceptID In (' || tTEmpConcepts(i).AppliesToID || ')) And (Concepts.StartDate<=' || lForPayrollIDC || ') And (Concepts.EndDate>=' || lForPayrollIDC || ') Group By IsDeduction';
+                    dAmount := 0;
+                    dTaxAmount := TO_NUMBER(tTEmpConcepts(i).ConceptAmount) / 100;
+                    bMinMaxApplied := False;
+                    OPEN c_cursors FOR sQuery;
+                    LOOP
+                        FETCH c_cursors INTO v_TotalAmount, v_IsDeduction;
+                        If  c_cursors%NOTFOUND Then
+                            GoTo NoRowsQueryCV1;
+                        End If;
+                        If TO_NUMBER(v_IsDeduction) = 0 Then
+                            dAmount := dAmount + TO_NUMBER(v_TotalAmount);
+                        Else
+                            dAmount := dAmount - TO_NUMBER(v_TotalAmount);
+                        End If;
+                    END LOOP;
+
+                    If TO_NUMBER(tTEmpConcepts(i).ConceptMin) > 0 Then
+                        If TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 3 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).ZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).ZoneTypeID);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 13 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 23 Then
+                            If dAmount < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).ZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).ZoneTypeID);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 24 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(1);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 25 Then
+                            If dAmount < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(1);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 33 Then
+                            If dAmount < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 34 Then
+                            If (dAmount * dTaxAmount) < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(4);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMinQttyID) = 35 Then
+                            If dAmount < (TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin) * adDSM(4);
+                            End If;
+                        Else
+                            dAmount := dAmount * dTaxAmount;
+                            bMinMaxApplied := True;
+                            If dAmount < TO_NUMBER(tTEmpConcepts(i).ConceptMin) Then 
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMin);
+                            End If;
+                        End If;
+                    End If;
+                    If TO_NUMBER(tTEmpConcepts(i).ConceptMax) > 0 Then
+                        If TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 3 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).ZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).ZoneTypeID);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 13 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 23 Then
+                            If dAmount > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).ZoneTypeID)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).ZoneTypeID);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 24 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(1);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 25 Then
+                            If dAmount > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(1)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(1);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 33 Then
+                            If dAmount > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(tTEmpConcepts(i).EconomicZoneID + 3);
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 34 Then
+                            If (dAmount * dTaxAmount) > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(4);
+                                bMinMaxApplied := True;
+                            End If;
+                        ElsIf TO_NUMBER(tTEmpConcepts(i).ConceptMaxQttyID) = 35 Then
+                            If dAmount > (TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(4)) Then
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax) * adDSM(4);
+                            End If;
+                        Else
+                            dAmount := dAmount * dTaxAmount;
+                            bMinMaxApplied := True;
+                            If dAmount > TO_NUMBER(tTEmpConcepts(i).ConceptMax) Then 
+                                dAmount := TO_NUMBER(tTEmpConcepts(i).ConceptMax);
+                            End If;        
+                        End If;
+                    End If;
+                    If Not bMinMaxApplied Then 
+                        dAmount := dAmount * dTaxAmount;
+                       End If;
+                    <<NoRowsQueryCV1>>
+                    CLOSE c_cursors;
+                    iCOUNTJ:=iCOUNTJ+1;
+                    tTEmpConceptsToInsert(iCOUNTJ).EmployeeID := tTEmpConcepts(i).EmployeeID;
+                    tTEmpConceptsToInsert(iCOUNTJ).ConceptID := tTEmpConcepts(i).ConceptID;
+                    tTEmpConceptsToInsert(iCOUNTJ).ConceptAmount := dAmount;
+                END LOOP;
+
+                IF (tTEmpConceptsToInsert.COUNT > 0) THEN
+                    FOR ix IN tTEmpConceptsToInsert.FIRST..tTEmpConceptsToInsert.LAST
+                    LOOP
+                        BEGIN
+                            sQueryToInsert := 'Insert Into Payroll_' || lPayrollIDC || ' (RecordDate, RecordID, EmployeeID, ConceptID, PayrollTypeID, ConceptAmount, ConceptTaxes, ConceptRetention, UserID) Values (' || lForPayrollIDC || ', 1, ' || tTEmpConceptsToInsert(ix).EmployeeID || ', ' || tTEmpConceptsToInsert(ix).ConceptID || ', 1, ' || tTEmpConceptsToInsert(ix).ConceptAmount || ', 0, 0, ' || '3)';
+                            EXECUTE IMMEDIATE sQueryToInsert;
+                            iInsertCountsC:=iInsertCountsC+1;
+                            commit;
+                        EXCEPTION
+                            WHEN DUP_VAL_ON_INDEX THEN
+                                NULL;
+                            WHEN OTHERS THEN
+                                NULL;
+                        END;
+                    END LOOP;
+                END IF;
+             END IF;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                NULL;
+        END;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END CreateAndRunConcepts;
+/

@@ -1,0 +1,69 @@
+CREATE OR REPLACE PROCEDURE SIAP.UpdateEmpChangesLKP(lPayrollID NUMBER, iUpdateCounts OUT NUMBER) IS
+
+    TYPE CUR_TYP IS REF CURSOR;
+    c_cursor CUR_TYP;
+    sQuery VARCHAR2(1000);
+
+    Type EmployeesChanges IS RECORD(
+        EmployeeID NUMBER,
+        MinFirstDate NUMBER,
+        MaxLastDate NUMBER,
+        Concepts40 NUMBER
+    );
+
+    TYPE TEmployeesChanges IS TABLE OF EmployeesChanges INDEX BY BINARY_INTEGER;
+    tTEmployeesChanges TEmployeesChanges;
+
+    iCOUNT NUMBER;
+    sQueryToUpdate VARCHAR2(2000);
+    v_EmployeeID EmployeesChangesLKP.EmployeeID%TYPE;
+    v_Concepts40 EmployeesChangesLKP.Concepts40%TYPE;
+    v_MinFirstDate EmployeesChangesLKP.FirstDate%TYPE;
+    v_MaxLastDate EmployeesChangesLKP.LastDate%TYPE;
+BEGIN
+        iCOUNT := 0;
+        iUpdateCounts := 0;
+        sQuery := 'Select EmployeeID, Concepts40, Min(FirstDate) As MinFirstDate, Max(LastDate) As MaxLastDate' || 
+                        ' From EmployeesChangesLKP' ||
+                        ' Where (PayrollID=' || lPayrollID || ')' || 
+                        ' And (PayrollDate<0)' ||
+                        'Group By EmployeeID, Concepts40 Order By EmployeeID';
+
+        tTEmployeesChanges.DELETE;
+        OPEN c_cursor FOR sQuery;
+        FETCH c_cursor INTO v_EmployeeID, v_Concepts40, v_MinFirstDate, v_MaxLastDate;
+        LOOP
+            EXIT WHEN c_cursor%NOTFOUND;
+            iCOUNT := iCOUNT+1;
+            tTEmployeesChanges(iCOUNT).EmployeeID := v_EmployeeID;
+            tTEmployeesChanges(iCOUNT).MinFirstDate := v_Concepts40;
+            tTEmployeesChanges(iCOUNT).MaxLastDate := v_MinFirstDate;
+            tTEmployeesChanges(iCOUNT).Concepts40 := v_MaxLastDate;
+            FETCH c_cursor INTO v_EmployeeID, v_Concepts40, v_MinFirstDate, v_MaxLastDate;
+        END LOOP;
+
+        If tTEmployeesChanges.COUNT > 0 Then
+            FOR i IN tTEmployeesChanges.FIRST..tTEmployeesChanges.LAST
+            LOOP
+                BEGIN
+                    sQueryToUpdate := 'Update EmployeesChangesLKP Set FirstDate=' || tTEmployeesChanges(i).MinFirstDate || ', LastDate=' || tTEmployeesChanges(i).MinFirstDate || ', Concepts40=' || tTEmployeesChanges(i).MinFirstDate || ' Where (PayrollID=' || lPayrollID || ') And (PayrollDate=' || lPayrollID || ') And (EmployeeID=' || tTEmployeesChanges(i).EmployeeID || ')';
+                    EXECUTE IMMEDIATE sQueryToUpdate;
+                    iUpdateCounts:=iUpdateCounts+1;
+                    commit;
+                EXCEPTION
+                    WHEN DUP_VAL_ON_INDEX THEN
+                        NULL;
+                    WHEN OTHERS THEN
+                        NULL;
+                END;
+            END LOOP;
+        End If;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END UpdateEmpChangesLKP;
+/
